@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import type { Task, Artifact, Rubric, Submission, RubricField } from '@/types/database'
+import type { Task, Rubric, Submission } from '@/types/database'
 import RubricForm from './RubricForm'
-import ArtifactViewer from './ArtifactViewer'
 
 interface LabelerTaskDetailProps {
   taskId: string
@@ -16,12 +15,10 @@ interface LabelerTaskDetailProps {
 export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit }: LabelerTaskDetailProps) {
   const [task, setTask] = useState<Task | null>(null)
   const [rubric, setRubric] = useState<Rubric | null>(null)
-  const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [rubricData, setRubricData] = useState<Record<string, unknown>>({})
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [tab, setTab] = useState<'rubric' | 'artifacts'>('rubric')
   const supabase = createClient()
 
   useEffect(() => {
@@ -48,14 +45,6 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       .single()
 
     if (rubricData) setRubric(rubricData)
-
-    // Load artifacts
-    const { data: artifactsData } = await supabase
-      .from('artifacts')
-      .select('*')
-      .eq('task_id', taskId)
-
-    if (artifactsData) setArtifacts(artifactsData)
 
     // Load existing submission
     const { data: submissionData } = await supabase
@@ -177,6 +166,34 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     }
   }
 
+  const handleUnsubmit = async () => {
+    if (!submission || submission.status !== 'submitted') return
+
+    const confirmed = confirm('Are you sure you want to unsubmit this task? You will be able to edit and resubmit it.')
+    if (!confirmed) return
+
+    setSubmitting(true)
+    try {
+      const { error } = await supabase
+        .from('submissions')
+        .update({
+          status: 'in_progress',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', submission.id)
+
+      if (error) throw error
+
+      alert('Task unsubmitted successfully! You can now edit and resubmit.')
+      await loadTaskDetails()
+    } catch (error) {
+      console.error('Error unsubmitting:', error)
+      alert('Failed to unsubmit. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (loading || !task || !rubric) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -188,7 +205,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     )
   }
 
-  const isReadOnly = submission?.status === 'submitted' || submission?.status === 'reviewed'
+  const isReadOnly = submission?.status === 'reviewed'
+  const canUnsubmit = submission?.status === 'submitted'
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -198,17 +216,19 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-gray-900">{task.title}</h2>
               {task.description && (
-                <p className="text-gray-600 mt-2">{task.description}</p>
-              )}
-              {task.deadline && (
-                <p className="text-sm text-gray-500 mt-2">
-                  Deadline: {new Date(task.deadline).toLocaleString()}
-                </p>
+                <p className="text-gray-600 mt-2 whitespace-pre-wrap">{task.description}</p>
               )}
               {submission?.reviewed_at && submission.feedback && (
                 <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
                   <p className="text-sm font-medium text-green-900">Admin Feedback:</p>
                   <p className="text-sm text-green-800 mt-1">{submission.feedback}</p>
+                </div>
+              )}
+              {canUnsubmit && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm text-yellow-900">
+                    This task has been submitted. You can unsubmit it to make changes if needed.
+                  </p>
                 </div>
               )}
             </div>
@@ -218,43 +238,18 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
               </svg>
             </button>
           </div>
-
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={() => setTab('rubric')}
-              className={`px-4 py-2 rounded ${
-                tab === 'rubric' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              Rubric Form ({rubric.schema.fields.length} fields)
-            </button>
-            <button
-              onClick={() => setTab('artifacts')}
-              className={`px-4 py-2 rounded ${
-                tab === 'artifacts' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              Artifacts ({artifacts.length} files)
-            </button>
-          </div>
         </div>
 
         <div className="p-6 max-h-[60vh] overflow-y-auto">
-          {tab === 'rubric' && (
-            <RubricForm
-              rubric={rubric}
-              data={rubricData}
-              onChange={setRubricData}
-              readOnly={isReadOnly}
-            />
-          )}
-
-          {tab === 'artifacts' && (
-            <ArtifactViewer artifacts={artifacts} />
-          )}
+          <RubricForm
+            rubric={rubric}
+            data={rubricData}
+            onChange={setRubricData}
+            readOnly={isReadOnly}
+          />
         </div>
 
-        {!isReadOnly && (
+        {!isReadOnly && !canUnsubmit && (
           <div className="p-6 border-t border-gray-200 flex justify-between">
             <button
               onClick={onClose}
@@ -283,10 +278,28 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           </div>
         )}
 
+        {canUnsubmit && (
+          <div className="p-6 border-t border-gray-200 flex justify-between bg-gray-50">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+            >
+              Close
+            </button>
+            <button
+              onClick={handleUnsubmit}
+              disabled={submitting}
+              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded disabled:opacity-50"
+            >
+              {submitting ? 'Unsubmitting...' : 'Unsubmit to Edit'}
+            </button>
+          </div>
+        )}
+
         {isReadOnly && (
           <div className="p-6 border-t border-gray-200 bg-gray-50">
             <p className="text-center text-gray-600">
-              This task has been submitted and cannot be edited.
+              This task has been reviewed and cannot be edited.
             </p>
           </div>
         )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import type { Task, Artifact, Rubric, TaskAssignment } from '@/types/database'
+import type { Task, Rubric, TaskAssignment } from '@/types/database'
 
 interface TaskDetailModalProps {
   taskId: string
@@ -18,14 +18,14 @@ interface UserProfile {
 
 export default function TaskDetailModal({ taskId, onClose, onUpdate }: TaskDetailModalProps) {
   const [task, setTask] = useState<Task | null>(null)
-  const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [rubric, setRubric] = useState<Rubric | null>(null)
   const [assignments, setAssignments] = useState<TaskAssignment[]>([])
   const [labelers, setLabelers] = useState<UserProfile[]>([])
   const [selectedLabelers, setSelectedLabelers] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [assigning, setAssigning] = useState(false)
-  const [tab, setTab] = useState<'details' | 'rubric' | 'artifacts' | 'assign'>('details')
+  const [deleting, setDeleting] = useState(false)
+  const [tab, setTab] = useState<'details' | 'rubric' | 'assign'>('details')
   const supabase = createClient()
 
   useEffect(() => {
@@ -44,14 +44,6 @@ export default function TaskDetailModal({ taskId, onClose, onUpdate }: TaskDetai
       .single()
 
     if (taskData) setTask(taskData)
-
-    // Load artifacts
-    const { data: artifactsData } = await supabase
-      .from('artifacts')
-      .select('*')
-      .eq('task_id', taskId)
-
-    if (artifactsData) setArtifacts(artifactsData)
 
     // Load rubric
     const { data: rubricData } = await supabase
@@ -146,18 +138,30 @@ export default function TaskDetailModal({ taskId, onClose, onUpdate }: TaskDetai
     }
   }
 
-  const downloadArtifact = async (artifact: Artifact) => {
-    const { data } = await supabase.storage
-      .from('artifacts')
-      .download(artifact.storage_path)
+  const handleDeleteTask = async () => {
+    if (!task) return
 
-    if (data) {
-      const url = URL.createObjectURL(data)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = artifact.file_name
-      a.click()
-      URL.revokeObjectURL(url)
+    const confirmed = confirm(
+      `Are you sure you want to delete "${task.title}"? This will permanently delete:\n- The task\n- Associated rubric\n- All assignments\n- All submissions\n\nThis action cannot be undone.`
+    )
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId)
+
+      if (error) throw error
+
+      onUpdate()
+      onClose()
+    } catch (error) {
+      console.error('Error deleting task:', error)
+      alert('Failed to delete task. Please try again.')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -189,24 +193,28 @@ export default function TaskDetailModal({ taskId, onClose, onUpdate }: TaskDetai
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-200">
           <div className="flex justify-between items-start">
-            <div>
+            <div className="flex-1">
               <h2 className="text-2xl font-bold text-gray-900">{task.title}</h2>
               <div className="mt-2 flex items-center gap-3">
                 <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(task.status)}`}>
                   {task.status.replace('_', ' ').toUpperCase()}
                 </span>
-                {task.deadline && (
-                  <span className="text-sm text-gray-600">
-                    Deadline: {new Date(task.deadline).toLocaleDateString()}
-                  </span>
-                )}
               </div>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-start gap-2">
+              <button
+                onClick={handleDeleteTask}
+                disabled={deleting}
+                className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-medium disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete Task'}
+              </button>
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 flex gap-2">
@@ -223,16 +231,10 @@ export default function TaskDetailModal({ taskId, onClose, onUpdate }: TaskDetai
               Rubric ({rubric?.schema.fields.length || 0} fields)
             </button>
             <button
-              onClick={() => setTab('artifacts')}
-              className={`px-4 py-2 rounded ${tab === 'artifacts' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}
-            >
-              Artifacts ({artifacts.length})
-            </button>
-            <button
               onClick={() => setTab('assign')}
               className={`px-4 py-2 rounded ${tab === 'assign' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}
             >
-              Assign ({assignments.length} labelers)
+              Reassign ({assignments.length} labelers)
             </button>
           </div>
         </div>
@@ -315,45 +317,12 @@ export default function TaskDetailModal({ taskId, onClose, onUpdate }: TaskDetai
             </div>
           )}
 
-          {tab === 'artifacts' && (
-            <div>
-              {artifacts.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded border-2 border-dashed border-gray-300">
-                  <p className="text-gray-600">No artifacts uploaded</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {artifacts.map((artifact) => (
-                    <div key={artifact.id} className="border border-gray-200 rounded p-4 flex items-center justify-between hover:bg-gray-50">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-100 rounded flex items-center justify-center">
-                          <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{artifact.file_name}</p>
-                          <p className="text-sm text-gray-500">
-                            {artifact.file_type.toUpperCase()} • {(artifact.file_size / 1024).toFixed(2)} KB
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => downloadArtifact(artifact)}
-                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                      >
-                        Download
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {tab === 'assign' && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Assign Labelers to Task</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Reassign Labelers to Task</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                You can reassign this task at any stage. Changes will be reflected on labelers&apos; dashboards immediately.
+              </p>
 
               {labelers.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded border-2 border-dashed border-gray-300">
