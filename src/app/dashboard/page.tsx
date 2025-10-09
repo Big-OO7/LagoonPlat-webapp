@@ -7,9 +7,17 @@ import AdminDashboard from '@/components/AdminDashboard'
 import LabelerDashboard from '@/components/LabelerDashboard'
 import type { User } from '@supabase/supabase-js'
 
+interface UserProfile {
+  id: string
+  role: 'admin' | 'labeler'
+  email: string
+  created_at: string
+  updated_at: string
+}
+
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
