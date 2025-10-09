@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import TasksManager from './admin/TasksManager'
 import SubmissionsReview from './admin/SubmissionsReview'
 import UsersManager from './admin/UsersManager'
+import DashboardOverview from './admin/DashboardOverview'
 
 interface AdminDashboardProps {
   user: User
@@ -74,69 +75,10 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
 
           <div className="p-6">
             {activeTab === 'overview' && (
-              <div>
-                <h2 className="text-xl font-semibold mb-4">Welcome, Admin!</h2>
-                <div className="space-y-4">
-                  <div className="bg-gray-50 p-4 rounded">
-                    <p>
-                      <strong>Email:</strong> {profile.email}
-                    </p>
-                    <p>
-                      <strong>Role:</strong>{' '}
-                      <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm">
-                        {profile.role.toUpperCase()}
-                      </span>
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-                    <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                      <h3 className="text-lg font-semibold text-indigo-900 mb-2">
-                        Tasks Management
-                      </h3>
-                      <p className="text-gray-600 text-sm">
-                        Create tasks, assign to labelers, and track progress
-                      </p>
-                      <button
-                        onClick={() => setActiveTab('tasks')}
-                        className="mt-3 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                      >
-                        Go to Tasks →
-                      </button>
-                    </div>
-
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-                      <h3 className="text-lg font-semibold text-green-900 mb-2">
-                        Submissions
-                      </h3>
-                      <p className="text-gray-600 text-sm">
-                        Review labeler submissions and provide feedback
-                      </p>
-                      <button
-                        onClick={() => setActiveTab('submissions')}
-                        className="mt-3 text-green-600 hover:text-green-800 text-sm font-medium"
-                      >
-                        Go to Submissions →
-                      </button>
-                    </div>
-
-                    <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
-                      <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                        User Management
-                      </h3>
-                      <p className="text-gray-600 text-sm">
-                        Manage labelers and assign roles
-                      </p>
-                      <button
-                        onClick={() => setActiveTab('users')}
-                        className="mt-3 text-purple-600 hover:text-purple-800 text-sm font-medium"
-                      >
-                        Go to Users →
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <DashboardOverview
+                profile={profile}
+                onNavigate={(tab) => setActiveTab(tab)}
+              />
             )}
 
             {activeTab === 'tasks' && <TasksManager userId={user.id} />}

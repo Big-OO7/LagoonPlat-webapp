@@ -46,6 +46,28 @@ export default function TasksManager({ userId }: TasksManagerProps) {
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
+  const handleDeleteTask = async (taskId: string, taskTitle: string) => {
+    const confirmed = confirm(
+      `Are you sure you want to delete "${taskTitle}"? This will also delete:\n- Associated rubric\n- All artifacts\n- All assignments\n- All submissions\n\nThis action cannot be undone.`
+    )
+    if (!confirmed) return
+
+    try {
+      // Delete task (cascade will handle related records)
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId)
+
+      if (error) throw error
+
+      alert('Task deleted successfully!')
+      loadTasks()
+    } catch (error) {
+      alert('Failed to delete task: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -107,9 +129,15 @@ export default function TasksManager({ userId }: TasksManagerProps) {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setSelectedTaskId(task.id)}
-                    className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                    className="px-3 py-1 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded text-sm font-medium"
                   >
                     View Details
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTask(task.id, task.title)}
+                    className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-medium"
+                  >
+                    Delete
                   </button>
                 </div>
               </div>
