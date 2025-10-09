@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 
 interface UserProfile {
@@ -13,42 +13,52 @@ interface UserProfile {
 export default function UsersManager() {
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'admin' | 'labeler'>('all')
   const supabase = createClient()
 
-  useEffect(() => {
-    loadUsers()
-  }, [])
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true)
+    setError(null)
 
-    const { data } = await supabase
+    const { data, error: fetchError } = await supabase
       .from('user_profiles')
       .select('*')
       .order('created_at', { ascending: false })
 
-    if (data) {
+    if (fetchError) {
+      setError(`Failed to load users: ${fetchError.message}`)
+      setUsers([])
+    } else if (data) {
       setUsers(data)
     }
 
     setLoading(false)
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    loadUsers()
+  }, [loadUsers])
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'labeler') => {
     const confirmed = confirm(`Are you sure you want to change this user's role to ${newRole}?`)
     if (!confirmed) return
 
-    const { error } = await supabase
+    setActionLoading(`role-${userId}`)
+    setError(null)
+
+    const { error: updateError } = await supabase
       .from('user_profiles')
       .update({ role: newRole })
       .eq('id', userId)
 
-    if (error) {
-      alert('Failed to update role: ' + error.message)
+    setActionLoading(null)
+
+    if (updateError) {
+      setError(`Failed to update role: ${updateError.message}`)
     } else {
-      alert('Role updated successfully!')
-      loadUsers()
+      await loadUsers()
     }
   }
 
@@ -56,18 +66,22 @@ export default function UsersManager() {
     const confirmed = confirm(`Are you sure you want to delete user ${email}? This action cannot be undone.`)
     if (!confirmed) return
 
+    setActionLoading(`delete-${userId}`)
+    setError(null)
+
     // Note: This will only delete the profile. The auth.users entry remains due to RLS
     // In production, you might want to call a Supabase Edge Function to fully delete the user
-    const { error } = await supabase
+    const { error: deleteError } = await supabase
       .from('user_profiles')
       .delete()
       .eq('id', userId)
 
-    if (error) {
-      alert('Failed to delete user: ' + error.message)
+    setActionLoading(null)
+
+    if (deleteError) {
+      setError(`Failed to delete user: ${deleteError.message}`)
     } else {
-      alert('User profile deleted successfully!')
-      loadUsers()
+      await loadUsers()
     }
   }
 
@@ -87,6 +101,26 @@ export default function UsersManager() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Users Management</h2>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-red-800">{error}</p>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-600 hover:text-red-800"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -186,14 +220,22 @@ export default function UsersManager() {
                           user.id,
                           user.role === 'admin' ? 'labeler' : 'admin'
                         )}
-                        className="text-indigo-600 hover:text-indigo-900"
+                        disabled={actionLoading === `role-${user.id}`}
+                        className="text-indigo-600 hover:text-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                       >
+                        {actionLoading === `role-${user.id}` && (
+                          <div className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600"></div>
+                        )}
                         Change Role
                       </button>
                       <button
                         onClick={() => handleDeleteUser(user.id, user.email)}
-                        className="text-red-600 hover:text-red-900"
+                        disabled={actionLoading === `delete-${user.id}`}
+                        className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                       >
+                        {actionLoading === `delete-${user.id}` && (
+                          <div className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
+                        )}
                         Delete
                       </button>
                     </div>

@@ -116,11 +116,6 @@ export default function TasksManager({ userId }: TasksManagerProps) {
                     <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(task.status)}`}>
                       {task.status.replace('_', ' ').toUpperCase()}
                     </span>
-                    {task.deadline && (
-                      <span>
-                        Deadline: {new Date(task.deadline).toLocaleDateString()}
-                      </span>
-                    )}
                     <span>
                       Created: {new Date(task.created_at).toLocaleDateString()}
                     </span>
