@@ -33,8 +33,8 @@ export default function Signup() {
         router.push('/dashboard')
         router.refresh()
       }, 1500)
-    } catch (error: any) {
-      setError(error.message)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'An error occurred')
     } finally {
       setLoading(false)
     }
