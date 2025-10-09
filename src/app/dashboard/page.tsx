@@ -44,7 +44,24 @@ export default function Dashboard() {
           .eq('id', user.id)
           .single()
 
-        if (profileError) {
+        if (profileError && profileError.code === 'PGRST116') {
+          // Profile doesn't exist, create it
+          const { data: newProfile, error: createError } = await supabase
+            .from('user_profiles')
+            .insert({
+              id: user.id,
+              email: user.email,
+              role: 'labeler',
+            })
+            .select()
+            .single()
+
+          if (createError) {
+            setError('Failed to create profile: ' + createError.message)
+          } else if (newProfile) {
+            setProfile(newProfile)
+          }
+        } else if (profileError) {
           setError(profileError.message)
         } else if (profileData) {
           setProfile(profileData)

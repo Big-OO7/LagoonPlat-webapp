@@ -23,15 +23,45 @@ export default function Signup() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+        }
       })
 
       if (error) throw error
 
+      if (!data.user) {
+        throw new Error('Failed to create user account')
+      }
+
       // Check if email confirmation is required
-      if (data.user && !data.session) {
+      if (!data.session) {
         setSuccess(true)
-        setError('Account created! Please check your email to confirm your account, then go to the login page.')
+        setError('Account created! Please check your email to confirm your account, then return to the login page.')
         return
+      }
+
+      // If we have a session, ensure profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('id', data.user.id)
+        .single()
+
+      // If profile doesn't exist, create it manually (fallback)
+      if (profileError || !profile) {
+        const { error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            role: 'labeler',
+          })
+
+        if (insertError) {
+          console.error('Profile creation error:', insertError)
+          // Don't throw - the trigger should have created it
+        }
       }
 
       setSuccess(true)
@@ -41,7 +71,8 @@ export default function Signup() {
         router.refresh()
       }, 1500)
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'An error occurred')
+      setError(error instanceof Error ? error.message : 'An error occurred during signup')
+      console.error('Signup error:', error)
     } finally {
       setLoading(false)
     }
