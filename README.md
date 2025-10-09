@@ -1,36 +1,152 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LagoonPlat - Data Labeling Platform
+
+A Next.js application with Supabase authentication featuring role-based access control for Admin and Labeler users.
+
+## Live Demo
+
+**Production URL:** https://webapp-6ns6ar6he-om-9006s-projects.vercel.app
+
+## Features
+
+- Supabase Authentication (Email/Password)
+- Role-Based Access Control (Admin & Labeler)
+- Automatic user profile creation on signup
+- Role-specific dashboards
+- Protected routes with middleware
+- Modern UI with Tailwind CSS
+
+## Tech Stack
+
+- **Frontend:** Next.js 15 with TypeScript
+- **Styling:** Tailwind CSS
+- **Authentication:** Supabase Auth
+- **Database:** PostgreSQL (via Supabase)
+- **Deployment:** Vercel
+- **Version Control:** Git/GitHub
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ installed
+- Supabase account
+- Vercel account (for deployment)
+
+### Local Development
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/Big-OO7/LagoonPlat-webapp.git
+cd LagoonPlat-webapp
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+Create a `.env.local` file in the root directory:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Run the development server:
+```bash
+npm run dev
+```
 
-## Learn More
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-To learn more about Next.js, take a look at the following resources:
+## Database Schema
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The application uses the following database structure:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### user_profiles table
+- `id` (UUID) - References auth.users
+- `role` (enum: 'admin' | 'labeler') - User role
+- `email` (TEXT) - User email
+- `created_at` (TIMESTAMP)
+- `updated_at` (TIMESTAMP)
 
-## Deploy on Vercel
+### Row Level Security (RLS)
+- Users can view their own profile
+- Admins can view all profiles
+- Only admins can create/delete profiles
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## User Roles
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Admin
+- Full access to the platform
+- Can manage users and their roles
+- Can create and assign labeling tasks
+- Access to analytics and metrics
+
+### Labeler
+- Can view assigned tasks
+- Can complete labeling work
+- Limited to their own data
+
+## Project Structure
+
+```
+src/
+├── app/
+│   ├── dashboard/      # Role-based dashboard
+│   ├── login/          # Login page
+│   ├── signup/         # Signup page
+│   └── page.tsx        # Root redirect to login
+├── components/
+│   ├── AdminDashboard.tsx
+│   └── LabelerDashboard.tsx
+├── lib/
+│   ├── supabase.ts          # Client-side Supabase client
+│   └── supabase-server.ts   # Server-side Supabase client
+└── middleware.ts            # Auth session management
+```
+
+## Deployment
+
+The app is deployed on Vercel with automatic deployments from the main branch.
+
+### Deploy Your Own
+
+1. Fork this repository
+2. Import to Vercel
+3. Add environment variables in Vercel dashboard
+4. Deploy
+
+## Setting Up First Admin User
+
+After signing up your first user:
+
+1. Go to your Supabase project dashboard
+2. Navigate to Table Editor > user_profiles
+3. Find your user and update the `role` column from 'labeler' to 'admin'
+4. Refresh the application
+
+Alternatively, you can run this SQL in Supabase SQL Editor:
+```sql
+UPDATE user_profiles
+SET role = 'admin'
+WHERE email = 'your-email@example.com';
+```
+
+## Next Steps
+
+Now that authentication is working, you can add:
+- Task management functionality
+- Data labeling interface
+- File upload capabilities
+- Analytics dashboard
+- User management for admins
+- Notification system
+
+## Contributing
+
+Feel free to submit issues and enhancement requests!
+
+## License
+
+MIT
