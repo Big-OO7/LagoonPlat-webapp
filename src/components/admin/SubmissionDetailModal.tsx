@@ -1,0 +1,283 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase'
+import type { Submission, Task, Rubric, Artifact } from '@/types/database'
+import RubricForm from '../labeler/RubricForm'
+import ArtifactViewer from '../labeler/ArtifactViewer'
+
+interface SubmissionDetailModalProps {
+  submissionId: string
+  onClose: () => void
+  onUpdate: () => void
+}
+
+interface SubmissionWithDetails extends Submission {
+  task?: Task
+  labeler_email?: string
+}
+
+export default function SubmissionDetailModal({ submissionId, onClose, onUpdate }: SubmissionDetailModalProps) {
+  const [submission, setSubmission] = useState<SubmissionWithDetails | null>(null)
+  const [task, setTask] = useState<Task | null>(null)
+  const [rubric, setRubric] = useState<Rubric | null>(null)
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [loading, setLoading] = useState(true)
+  const [feedback, setFeedback] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [tab, setTab] = useState<'rubric' | 'artifacts'>('rubric')
+  const supabase = createClient()
+
+  useEffect(() => {
+    loadSubmissionDetails()
+  }, [submissionId])
+
+  const loadSubmissionDetails = async () => {
+    setLoading(true)
+
+    // Load submission
+    const { data: submissionData } = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('id', submissionId)
+      .single()
+
+    if (!submissionData) {
+      setLoading(false)
+      return
+    }
+
+    // Load labeler email
+    const { data: profileData } = await supabase
+      .from('user_profiles')
+      .select('email')
+      .eq('id', submissionData.labeler_id)
+      .single()
+
+    setSubmission({
+      ...submissionData,
+      labeler_email: profileData?.email
+    })
+    setFeedback(submissionData.feedback || '')
+
+    // Load task
+    const { data: taskData } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('id', submissionData.task_id)
+      .single()
+
+    if (taskData) setTask(taskData)
+
+    // Load rubric
+    const { data: rubricData } = await supabase
+      .from('rubrics')
+      .select('*')
+      .eq('task_id', submissionData.task_id)
+      .single()
+
+    if (rubricData) setRubric(rubricData)
+
+    // Load artifacts
+    const { data: artifactsData } = await supabase
+      .from('artifacts')
+      .select('*')
+      .eq('task_id', submissionData.task_id)
+
+    if (artifactsData) setArtifacts(artifactsData)
+
+    setLoading(false)
+  }
+
+  const handleMarkAsReviewed = async () => {
+    if (!submission) return
+
+    setSubmitting(true)
+
+    try {
+      const { error } = await supabase
+        .from('submissions')
+        .update({
+          status: 'reviewed',
+          feedback: feedback,
+          reviewed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', submission.id)
+
+      if (error) throw error
+
+      onUpdate()
+    } catch (error) {
+      console.error('Error marking as reviewed:', error)
+      alert('Failed to mark as reviewed. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleUpdateFeedback = async () => {
+    if (!submission) return
+
+    setSubmitting(true)
+
+    try {
+      const { error } = await supabase
+        .from('submissions')
+        .update({
+          feedback: feedback,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', submission.id)
+
+      if (error) throw error
+
+      alert('Feedback updated successfully!')
+      onUpdate()
+    } catch (error) {
+      console.error('Error updating feedback:', error)
+      alert('Failed to update feedback. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (loading || !submission || !task || !rubric) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading submission...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const isReviewed = submission.status === 'reviewed'
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-5xl w-full my-8">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-gray-900">Submission Review</h2>
+              <div className="mt-2 space-y-1">
+                <p className="text-gray-600">
+                  <span className="font-medium">Task:</span> {task.title}
+                </p>
+                <p className="text-gray-600">
+                  <span className="font-medium">Submitted by:</span> {submission.labeler_email}
+                </p>
+                <p className="text-gray-600">
+                  <span className="font-medium">Submitted at:</span> {new Date(submission.submitted_at).toLocaleString()}
+                </p>
+                {submission.reviewed_at && (
+                  <p className="text-gray-600">
+                    <span className="font-medium">Reviewed at:</span> {new Date(submission.reviewed_at).toLocaleString()}
+                  </p>
+                )}
+              </div>
+              <div className="mt-3">
+                <span className={`px-3 py-1 rounded text-sm font-medium ${
+                  submission.status === 'submitted'
+                    ? 'bg-purple-100 text-purple-800'
+                    : 'bg-green-100 text-green-800'
+                }`}>
+                  {submission.status.replace('_', ' ').toUpperCase()}
+                </span>
+              </div>
+            </div>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-4">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => setTab('rubric')}
+              className={`px-4 py-2 rounded ${
+                tab === 'rubric' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              Rubric Responses
+            </button>
+            <button
+              onClick={() => setTab('artifacts')}
+              className={`px-4 py-2 rounded ${
+                tab === 'artifacts' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              Artifacts ({artifacts.length})
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 max-h-[50vh] overflow-y-auto">
+          {tab === 'rubric' && (
+            <RubricForm
+              rubric={rubric}
+              data={submission.rubric_data as Record<string, unknown>}
+              onChange={() => {}} // Read-only
+              readOnly={true}
+            />
+          )}
+
+          {tab === 'artifacts' && (
+            <ArtifactViewer artifacts={artifacts} />
+          )}
+        </div>
+
+        <div className="p-6 border-t border-gray-200 bg-gray-50">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Admin Feedback {isReviewed && <span className="text-gray-500">(Sent to labeler)</span>}
+              </label>
+              <textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="Enter feedback for the labeler..."
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="flex justify-between">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-100"
+                disabled={submitting}
+              >
+                Close
+              </button>
+
+              <div className="flex gap-2">
+                {isReviewed && (
+                  <button
+                    onClick={handleUpdateFeedback}
+                    className="px-4 py-2 border border-indigo-600 text-indigo-600 rounded hover:bg-indigo-50 disabled:opacity-50"
+                    disabled={submitting}
+                  >
+                    {submitting ? 'Updating...' : 'Update Feedback'}
+                  </button>
+                )}
+                {!isReviewed && (
+                  <button
+                    onClick={handleMarkAsReviewed}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-50"
+                    disabled={submitting}
+                  >
+                    {submitting ? 'Submitting...' : 'Mark as Reviewed'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
