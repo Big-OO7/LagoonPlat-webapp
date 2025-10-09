@@ -26,32 +26,8 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
 
   // Rubric
   const [rubricContent, setRubricContent] = useState('')
-  const [rubricFile, setRubricFile] = useState<File | null>(null)
-
-  // Artifacts
-  const [artifactFiles, setArtifactFiles] = useState<File[]>([])
 
   const supabase = createClient()
-
-  const handleRubricFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setRubricFile(file)
-    try {
-      const text = await file.text()
-      setRubricContent(text)
-      setError(null)
-    } catch (err) {
-      setError('Failed to read rubric file')
-    }
-  }
-
-  const handleArtifactFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setArtifactFiles(Array.from(e.target.files))
-    }
-  }
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -125,32 +101,6 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
 
       if (rubricError) throw rubricError
 
-      // 5. Upload artifacts
-      for (const file of artifactFiles) {
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${task.id}/${Date.now()}_${file.name}`
-
-        const { error: uploadError } = await supabase.storage
-          .from('artifacts')
-          .upload(fileName, file)
-
-        if (uploadError) throw uploadError
-
-        // Save artifact record
-        const { error: artifactError } = await supabase
-          .from('artifacts')
-          .insert({
-            task_id: task.id,
-            file_name: file.name,
-            file_type: fileExt || 'unknown',
-            file_size: file.size,
-            storage_path: fileName,
-            uploaded_by: userId,
-          })
-
-        if (artifactError) throw artifactError
-      }
-
       onSuccess()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -165,7 +115,7 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
         <div className="p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">Create New Task</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Enter task name and content, upload rubric, then add artifact files
+            Enter task name, content, and rubric JSON
           </p>
         </div>
 
@@ -214,74 +164,23 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
 
           {/* Rubric Section */}
           <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">2. Rubric</h3>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload Rubric File (JSON)
-                </label>
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleRubricFileUpload}
-                  className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-sm"
-                />
-                {rubricFile && (
-                  <p className="text-xs text-green-700 mt-1">✓ Loaded: {rubricFile.name}</p>
-                )}
-              </div>
-
-              <div className="text-center text-gray-500 text-sm">OR</div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Paste Rubric JSON *
-                </label>
-                <textarea
-                  value={rubricContent}
-                  onChange={(e) => setRubricContent(e.target.value)}
-                  rows={8}
-                  placeholder={`{\n  "name": "Review Rubric",\n  "description": "Evaluation criteria",\n  "fields": [\n    {\n      "id": "rating",\n      "label": "Quality Rating",\n      "type": "rating",\n      "required": true\n    }\n  ]\n}`}
-                  className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Upload a JSON file or paste the rubric JSON directly
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Artifacts Section */}
-          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">3. Artifact Files</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">2. Rubric (JSON)</h3>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Upload Files (PDF, Excel)
+                Paste Rubric JSON *
               </label>
-              <input
-                type="file"
-                multiple
-                accept=".pdf,.xlsx,.xls,.csv"
-                onChange={handleArtifactFilesChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded bg-white text-sm"
+              <textarea
+                value={rubricContent}
+                onChange={(e) => setRubricContent(e.target.value)}
+                rows={10}
+                placeholder={`{\n  "name": "Review Rubric",\n  "description": "Evaluation criteria",\n  "fields": [\n    {\n      "id": "rating",\n      "label": "Quality Rating",\n      "type": "rating",\n      "required": true\n    }\n  ]\n}`}
+                className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Paste the rubric JSON directly
+              </p>
             </div>
-
-            {artifactFiles.length > 0 && (
-              <div className="mt-3">
-                <p className="text-sm font-medium text-gray-700 mb-2">Selected files:</p>
-                <ul className="space-y-1">
-                  {artifactFiles.map((file, index) => (
-                    <li key={index} className="text-sm text-gray-600 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      {file.name} ({(file.size / 1024).toFixed(2)} KB)
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
 
           {/* Help Section */}
