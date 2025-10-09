@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Task } from '@/types/database'
 import CreateTaskModal from './CreateTaskModal'
+import TaskDetailModal from './TaskDetailModal'
 
 interface TasksManagerProps {
   userId: string
@@ -13,6 +14,7 @@ export default function TasksManager({ userId }: TasksManagerProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const supabase = createClient()
 
   const loadTasks = async () => {
@@ -103,11 +105,11 @@ export default function TasksManager({ userId }: TasksManagerProps) {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                  <button
+                    onClick={() => setSelectedTaskId(task.id)}
+                    className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
+                  >
                     View Details
-                  </button>
-                  <button className="text-gray-600 hover:text-gray-800 text-sm font-medium">
-                    Edit
                   </button>
                 </div>
               </div>
@@ -124,6 +126,14 @@ export default function TasksManager({ userId }: TasksManagerProps) {
             setShowCreateModal(false)
             loadTasks()
           }}
+        />
+      )}
+
+      {selectedTaskId && (
+        <TaskDetailModal
+          taskId={selectedTaskId}
+          onClose={() => setSelectedTaskId(null)}
+          onUpdate={() => loadTasks()}
         />
       )}
     </div>
