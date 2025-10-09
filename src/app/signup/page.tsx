@@ -20,12 +20,19 @@ export default function Signup() {
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       })
 
       if (error) throw error
+
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        setSuccess(true)
+        setError('Account created! Please check your email to confirm your account, then go to the login page.')
+        return
+      }
 
       setSuccess(true)
       // Redirect to dashboard after signup
