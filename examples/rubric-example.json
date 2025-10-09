@@ -1,0 +1,69 @@
+{
+  "name": "Financial Report Review Rubric",
+  "description": "Use this rubric to evaluate the financial report for accuracy, completeness, and compliance",
+  "fields": [
+    {
+      "id": "accuracy_rating",
+      "label": "Overall Accuracy",
+      "type": "rating",
+      "required": true,
+      "helpText": "Rate the overall accuracy of the financial data (1-5 stars)"
+    },
+    {
+      "id": "completeness",
+      "label": "Report Completeness",
+      "type": "select",
+      "required": true,
+      "options": ["Complete", "Mostly Complete", "Partially Complete", "Incomplete"],
+      "helpText": "Assess whether all required sections are present"
+    },
+    {
+      "id": "compliance_check",
+      "label": "Meets Compliance Standards",
+      "type": "boolean",
+      "required": true,
+      "helpText": "Does the report meet all regulatory compliance requirements?"
+    },
+    {
+      "id": "revenue_variance",
+      "label": "Revenue Variance Percentage",
+      "type": "number",
+      "required": false,
+      "min": -100,
+      "max": 100,
+      "placeholder": "Enter percentage",
+      "helpText": "Variance from projected revenue (if applicable)"
+    },
+    {
+      "id": "key_findings",
+      "label": "Key Findings",
+      "type": "textarea",
+      "required": true,
+      "placeholder": "Describe your key findings...",
+      "helpText": "Summarize the most important observations from your review"
+    },
+    {
+      "id": "issues_found",
+      "label": "Issues Identified",
+      "type": "multiselect",
+      "required": false,
+      "options": [
+        "Mathematical Errors",
+        "Missing Data",
+        "Formatting Issues",
+        "Compliance Violations",
+        "Inconsistent Data",
+        "Other"
+      ],
+      "helpText": "Select all issues that apply"
+    },
+    {
+      "id": "reviewer_notes",
+      "label": "Additional Notes",
+      "type": "text",
+      "required": false,
+      "placeholder": "Any additional comments...",
+      "helpText": "Optional notes for the admin"
+    }
+  ]
+}

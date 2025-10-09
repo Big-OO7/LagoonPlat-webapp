@@ -28,6 +28,10 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
   // Artifacts
   const [files, setFiles] = useState<File[]>([])
 
+  // JSON file uploads
+  const [taskJsonFile, setTaskJsonFile] = useState<File | null>(null)
+  const [rubricJsonFile, setRubricJsonFile] = useState<File | null>(null)
+
   const supabase = createClient()
 
   const addRubricField = () => {
@@ -56,6 +60,50 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
     }
   }
 
+  const handleTaskJsonUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setTaskJsonFile(file)
+
+    try {
+      const text = await file.text()
+      const json = JSON.parse(text)
+
+      // Populate task fields from JSON
+      if (json.title) setTitle(json.title)
+      if (json.description) setDescription(json.description)
+      if (json.deadline) setDeadline(json.deadline.replace('Z', '').slice(0, 16))
+
+      setError(null)
+    } catch (err) {
+      setError('Invalid task JSON file. Please check the format.')
+    }
+  }
+
+  const handleRubricJsonUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setRubricJsonFile(file)
+
+    try {
+      const text = await file.text()
+      const json = JSON.parse(text)
+
+      // Populate rubric fields from JSON
+      if (json.name) setRubricName(json.name)
+      if (json.description) setRubricDescription(json.description)
+      if (json.fields && Array.isArray(json.fields)) {
+        setRubricFields(json.fields)
+      }
+
+      setError(null)
+    } catch (err) {
+      setError('Invalid rubric JSON file. Please check the format.')
+    }
+  }
+
   const handleSubmit = async () => {
     if (!title.trim()) {
       setError('Task title is required')
@@ -71,6 +119,10 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
     setError(null)
 
     try {
+      // 0. Upload JSON files to storage if provided
+      let taskJsonPath = null
+      let rubricJsonPath = null
+
       // 1. Create the task
       const { data: task, error: taskError } = await supabase
         .from('tasks')
@@ -85,6 +137,30 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
         .single()
 
       if (taskError) throw taskError
+
+      // Upload task JSON to storage
+      if (taskJsonFile) {
+        const fileName = `tasks/${task.id}/task.json`
+        const { error: uploadError } = await supabase.storage
+          .from('artifacts')
+          .upload(fileName, taskJsonFile)
+
+        if (!uploadError) {
+          taskJsonPath = fileName
+        }
+      }
+
+      // Upload rubric JSON to storage
+      if (rubricJsonFile) {
+        const fileName = `tasks/${task.id}/rubric.json`
+        const { error: uploadError } = await supabase.storage
+          .from('artifacts')
+          .upload(fileName, rubricJsonFile)
+
+        if (!uploadError) {
+          rubricJsonPath = fileName
+        }
+      }
 
       // 2. Create the rubric
       const { error: rubricError } = await supabase
@@ -178,6 +254,24 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
 
           {step === 'basic' && (
             <div className="space-y-4">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-sm font-medium text-blue-900 mb-2">Upload Task JSON (Optional)</p>
+                <p className="text-xs text-blue-800 mb-2">
+                  Upload a JSON file to auto-populate task fields. See examples/task-example.json for format.
+                </p>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleTaskJsonUpload}
+                  className="w-full px-3 py-2 border border-blue-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                {taskJsonFile && (
+                  <p className="text-xs text-green-700 mt-2">
+                    ✓ Loaded: {taskJsonFile.name}
+                  </p>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Task Title *
@@ -220,6 +314,24 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
 
           {step === 'rubric' && (
             <div className="space-y-4">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+                <p className="text-sm font-medium text-blue-900 mb-2">Upload Rubric JSON (Optional)</p>
+                <p className="text-xs text-blue-800 mb-2">
+                  Upload a JSON file to auto-populate rubric fields. See examples/rubric-example.json for format.
+                </p>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleRubricJsonUpload}
+                  className="w-full px-3 py-2 border border-blue-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                />
+                {rubricJsonFile && (
+                  <p className="text-xs text-green-700 mt-2">
+                    ✓ Loaded: {rubricJsonFile.name}
+                  </p>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Rubric Name
