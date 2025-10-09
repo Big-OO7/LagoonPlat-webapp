@@ -82,11 +82,11 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
       }
 
       if (!rubricData.name) {
-        throw new Error('Rubric JSON must include a "name" field')
+        throw new Error('Rubric JSON must include a name field')
       }
 
       if (!rubricData.fields || !Array.isArray(rubricData.fields) || rubricData.fields.length === 0) {
-        throw new Error('Rubric JSON must include a "fields" array with at least one field')
+        throw new Error('Rubric JSON must include a fields array with at least one field')
       }
 
       // 1. Create the task
@@ -290,7 +290,7 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
               📖 Rubric Format Reference
             </p>
             <p className="text-xs text-blue-800">
-              The rubric must be valid JSON with a "name" field and a "fields" array.
+              The rubric must be valid JSON with a &quot;name&quot; field and a &quot;fields&quot; array.
               See <code className="bg-blue-100 px-1 py-0.5 rounded">examples/rubric-example.json</code>{' '}
               for the complete format.
             </p>
