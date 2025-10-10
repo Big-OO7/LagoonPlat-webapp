@@ -136,6 +136,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         console.log('Updating existing submission:', submission.id)
         const updateData = {
           response_data: responseData,
+          rubric_data: {}, // Legacy field, provide empty object
           grader_results: graderResults,
           score: score,
           status: 'submitted' as const,
@@ -161,6 +162,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           task_id: taskId,
           labeler_id: labelerId,
           response_data: responseData,
+          rubric_data: {}, // Legacy field, provide empty object
           grader_results: graderResults,
           score: score,
           status: 'submitted' as const,
@@ -218,6 +220,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           .from('submissions')
           .update({
             response_data: responseData,
+            rubric_data: {}, // Legacy field
             updated_at: new Date().toISOString(),
           })
           .eq('id', submission.id)
@@ -231,6 +234,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
             task_id: taskId,
             labeler_id: labelerId,
             response_data: responseData,
+            rubric_data: {}, // Legacy field
             status: 'in_progress',
           })
 
