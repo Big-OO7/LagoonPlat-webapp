@@ -16,6 +16,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const [task, setTask] = useState<Task | null>(null)
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [responseText, setResponseText] = useState('')
+  const [formResponses, setFormResponses] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const supabase = createClient()
@@ -47,8 +48,14 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     if (submissionData) {
       setSubmission(submissionData)
       // Load previous response if exists
-      if (submissionData.response_data && typeof submissionData.response_data === 'object' && 'text' in submissionData.response_data) {
-        setResponseText(String(submissionData.response_data.text) || '')
+      if (submissionData.response_data && typeof submissionData.response_data === 'object') {
+        if ('text' in submissionData.response_data) {
+          setResponseText(String(submissionData.response_data.text) || '')
+        }
+        // Load form responses for structured graders
+        if ('formData' in submissionData.response_data && typeof submissionData.response_data.formData === 'object') {
+          setFormResponses(submissionData.response_data.formData as Record<string, string>)
+        }
       }
     }
 
@@ -58,9 +65,40 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const handleSubmit = async () => {
     if (!task) return
 
-    if (!responseText.trim()) {
-      alert('Please provide a response before submitting.')
-      return
+    // Check if we're using form-based or text-based response
+    const hasStructuredGrader = task.graders?.some(g =>
+      (g.type === 'xml' || g.type === 'json') && g.config.structure && g.config.structure.length > 0
+    )
+
+    let responseToGrade = ''
+
+    if (hasStructuredGrader) {
+      // Validate form responses
+      const grader = task.graders?.find(g => g.config.structure && g.config.structure.length > 0)
+      if (grader && grader.config.structure) {
+        for (const field of grader.config.structure) {
+          if (!formResponses[field.name] || formResponses[field.name].trim() === '') {
+            alert(`Please fill in the "${field.name}" field before submitting.`)
+            return
+          }
+        }
+      }
+
+      // Construct XML or JSON from form responses
+      if (grader?.type === 'xml') {
+        responseToGrade = Object.entries(formResponses)
+          .map(([key, value]) => `<${key}>${value}</${key}>`)
+          .join('\n')
+      } else if (grader?.type === 'json') {
+        responseToGrade = JSON.stringify(formResponses, null, 2)
+      }
+    } else {
+      // Use plain text response
+      if (!responseText.trim()) {
+        alert('Please provide a response before submitting.')
+        return
+      }
+      responseToGrade = responseText
     }
 
     setSubmitting(true)
@@ -71,12 +109,14 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       let score = null
 
       if (task.graders && Array.isArray(task.graders) && task.graders.length > 0) {
-        const evaluation = await evaluateResponse(responseText, task.graders)
+        const evaluation = await evaluateResponse(responseToGrade, task.graders)
         graderResults = evaluation
         score = evaluation.percentageScore
       }
 
-      const responseData = { text: responseText }
+      const responseData = hasStructuredGrader
+        ? { formData: formResponses, generatedResponse: responseToGrade }
+        : { text: responseText }
 
       if (submission) {
         // Update existing submission
@@ -132,7 +172,13 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     setSubmitting(true)
 
     try {
-      const responseData = { text: responseText }
+      const hasStructuredGrader = task.graders?.some(g =>
+        (g.type === 'xml' || g.type === 'json') && g.config.structure && g.config.structure.length > 0
+      )
+
+      const responseData = hasStructuredGrader
+        ? { formData: formResponses }
+        : { text: responseText }
 
       if (submission) {
         // Update existing submission
@@ -217,6 +263,11 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const isReadOnly = submission?.status === 'reviewed'
   const canUnsubmit = submission?.status === 'submitted'
 
+  // Check if task uses structured graders (form-based) or plain text
+  const hasStructuredGrader = task.graders?.some(g =>
+    (g.type === 'xml' || g.type === 'json') && g.config.structure && g.config.structure.length > 0
+  )
+
   // Get example format from graders
   const exampleFormat = task.graders?.[0]?.type === 'xml'
     ? '<answer>your answer here</answer>'
@@ -272,79 +323,67 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
             </div>
           )}
 
-          {/* Response Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Your Response *
-            </label>
-            <textarea
-              value={responseText}
-              onChange={(e) => setResponseText(e.target.value)}
-              disabled={isReadOnly}
-              rows={12}
-              placeholder={exampleFormat}
-              className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              {task.graders?.[0]?.type === 'xml' && 'Provide your response in XML format. Use the exact field names shown in the placeholder above.'}
-              {task.graders?.[0]?.type === 'json' && 'Provide your response in valid JSON format. Use the exact field names shown in the placeholder above.'}
-              {(!task.graders || task.graders.length === 0 || (task.graders[0].type !== 'xml' && task.graders[0].type !== 'json')) && 'Enter your response above'}
-            </p>
-          </div>
-
-          {/* Grader Info - Show expected fields */}
-          {task.graders && task.graders.length > 0 && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Expected Response Format</h3>
-              {task.graders.map((grader, index) => (
-                <div key={index} className="mt-2">
-                  {grader.config.structure && grader.config.structure.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-gray-700 mb-2">
-                        Required fields ({grader.type.toUpperCase()} format):
-                      </p>
-                      <div className="space-y-1">
-                        {grader.config.structure.map((field, fieldIndex) => (
-                          <div key={fieldIndex} className="text-xs text-gray-600 font-mono bg-white p-2 rounded border border-gray-300">
-                            <span className="font-semibold text-blue-700">{field.name}</span>
-                            {' '}
-                            <span className="text-gray-500">({field.type})</span>
-                            {field.comparator.config.expected !== undefined && (
-                              <span className="text-gray-600">
-                                {' '}- Expected: <span className="text-green-700 font-semibold">{String(field.comparator.config.expected)}</span>
-                              </span>
-                            )}
-                          </div>
-                        ))}
+          {/* Response Input - Form-based for structured graders */}
+          {hasStructuredGrader ? (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Your Response</h3>
+              {task.graders?.map((grader, graderIndex) => (
+                grader.config.structure && grader.config.structure.length > 0 && (
+                  <div key={graderIndex} className="space-y-3">
+                    {grader.config.structure.map((field, fieldIndex) => (
+                      <div key={fieldIndex}>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          {field.name} *
+                          <span className="text-xs text-gray-500 ml-2">({field.type})</span>
+                        </label>
+                        <input
+                          type={field.type === 'int' || field.type === 'float' ? 'number' : 'text'}
+                          value={formResponses[field.name] || ''}
+                          onChange={(e) => setFormResponses({
+                            ...formResponses,
+                            [field.name]: e.target.value
+                          })}
+                          disabled={isReadOnly || canUnsubmit}
+                          placeholder={`Enter ${field.name}...`}
+                          step={field.type === 'float' ? 'any' : undefined}
+                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                        {field.comparator.config.expected !== undefined && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Hint: Expected value is {String(field.comparator.config.expected)}
+                          </p>
+                        )}
                       </div>
-                      {grader.type === 'xml' && (
-                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
-                          <p className="text-xs font-medium text-blue-900 mb-1">Example XML format:</p>
-                          <pre className="text-xs text-blue-800 font-mono">
-                            {grader.config.structure.map(f => `<${f.name}>${String(f.comparator.config.expected || 'your answer')}</${f.name}>`).join('\n')}
-                          </pre>
-                        </div>
-                      )}
-                      {grader.type === 'json' && (
-                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
-                          <p className="text-xs font-medium text-blue-900 mb-1">Example JSON format:</p>
-                          <pre className="text-xs text-blue-800 font-mono">
-                            {JSON.stringify(
-                              Object.fromEntries(
-                                grader.config.structure.map(f => [f.name, f.comparator.config.expected || 'your answer'])
-                              ),
-                              null,
-                              2
-                            )}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )
               ))}
-              <p className="text-xs text-gray-500 mt-3">
-                ✓ Your response will be automatically graded based on these criteria.
+            </div>
+          ) : (
+            /* Plain text response for text/number graders */
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Your Response *
+              </label>
+              <textarea
+                value={responseText}
+                onChange={(e) => setResponseText(e.target.value)}
+                disabled={isReadOnly || canUnsubmit}
+                rows={12}
+                placeholder={exampleFormat}
+                className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter your response above
+              </p>
+            </div>
+          )}
+
+          {/* Info message */}
+          {!hasStructuredGrader && task.graders && task.graders.length > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs text-blue-900">
+                ✓ Your response will be automatically graded when you submit.
               </p>
             </div>
           )}

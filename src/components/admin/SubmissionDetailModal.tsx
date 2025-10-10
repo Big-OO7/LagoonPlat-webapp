@@ -240,11 +240,32 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                   )}
                   <div className="p-4 bg-gray-50 border border-gray-300 rounded">
                     <h3 className="text-sm font-semibold text-gray-900 mb-2">Labeler Response</h3>
-                    <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono">
-                      {typeof submission.response_data === 'object' && 'text' in submission.response_data
-                        ? String(submission.response_data.text)
-                        : JSON.stringify(submission.response_data, null, 2)}
-                    </pre>
+                    {typeof submission.response_data === 'object' && 'formData' in submission.response_data ? (
+                      <div className="space-y-2">
+                        {Object.entries(submission.response_data.formData as Record<string, unknown>).map(([key, value]) => (
+                          <div key={key} className="bg-white p-3 rounded border border-gray-200">
+                            <p className="text-xs font-semibold text-gray-700">{key}</p>
+                            <p className="text-sm text-gray-900 mt-1">{String(value)}</p>
+                          </div>
+                        ))}
+                        {submission.response_data.generatedResponse && (
+                          <details className="mt-3">
+                            <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-800">
+                              View generated XML/JSON
+                            </summary>
+                            <pre className="text-xs text-gray-700 mt-2 p-2 bg-gray-100 rounded font-mono">
+                              {String(submission.response_data.generatedResponse)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    ) : (
+                      <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono">
+                        {typeof submission.response_data === 'object' && 'text' in submission.response_data
+                          ? String(submission.response_data.text)
+                          : JSON.stringify(submission.response_data, null, 2)}
+                      </pre>
+                    )}
                   </div>
                 </div>
               )}
