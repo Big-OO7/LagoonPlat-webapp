@@ -332,7 +332,7 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                           </div>
                         </div>
 
-                        {result.details && typeof result.details === 'object' && (
+                        {result.details && typeof result.details === 'object' && result.details !== null ? (
                           <div className="mt-3 space-y-2">
                             <p className="text-xs font-semibold text-gray-700 uppercase">Details</p>
                             {Object.entries(result.details).map(([key, value]) => {
@@ -367,7 +367,7 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                               return null
                             })}
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     ))}
                   </div>
