@@ -25,7 +25,7 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
   const [loading, setLoading] = useState(true)
   const [feedback, setFeedback] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [tab, setTab] = useState<'rubric' | 'artifacts'>('rubric')
+  const [tab, setTab] = useState<'response' | 'grader_results'>('response')
   const supabase = createClient()
 
   useEffect(() => {
@@ -142,7 +142,7 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
     }
   }
 
-  if (loading || !submission || !task || !rubric) {
+  if (loading || !submission || !task) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8">
@@ -152,6 +152,9 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
       </div>
     )
   }
+
+  const hasGraders = task.graders && task.graders.length > 0
+  const hasRubric = rubric !== null
 
   const isReviewed = submission.status === 'reviewed'
 
@@ -172,6 +175,12 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                 <p className="text-gray-600">
                   <span className="font-medium">Submitted at:</span> {new Date(submission.submitted_at).toLocaleString()}
                 </p>
+                {submission.score !== null && submission.score !== undefined && (
+                  <p className="text-gray-600">
+                    <span className="font-medium">Auto-Graded Score:</span>{' '}
+                    <span className="font-semibold text-lg text-indigo-600">{submission.score.toFixed(1)}%</span>
+                  </p>
+                )}
                 {submission.reviewed_at && (
                   <p className="text-gray-600">
                     <span className="font-medium">Reviewed at:</span> {new Date(submission.reviewed_at).toLocaleString()}
@@ -197,36 +206,169 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
 
           <div className="mt-4 flex gap-2">
             <button
-              onClick={() => setTab('rubric')}
+              onClick={() => setTab('response')}
               className={`px-4 py-2 rounded ${
-                tab === 'rubric' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+                tab === 'response' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
               }`}
             >
-              Rubric Responses
+              {hasGraders ? 'Response' : 'Rubric Responses'}
             </button>
-            <button
-              onClick={() => setTab('artifacts')}
-              className={`px-4 py-2 rounded ${
-                tab === 'artifacts' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              Artifacts ({artifacts.length})
-            </button>
+            {hasGraders && submission.grader_results && (
+              <button
+                onClick={() => setTab('grader_results')}
+                className={`px-4 py-2 rounded ${
+                  tab === 'grader_results' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                Grader Results
+              </button>
+            )}
           </div>
         </div>
 
         <div className="p-6 max-h-[50vh] overflow-y-auto">
-          {tab === 'rubric' && (
-            <RubricForm
-              rubric={rubric}
-              data={submission.rubric_data as Record<string, unknown>}
-              onChange={() => {}} // Read-only
-              readOnly={true}
-            />
+          {tab === 'response' && (
+            <div className="space-y-4">
+              {/* Grader-based response */}
+              {hasGraders && submission.response_data && (
+                <div>
+                  {task.prompt && (
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
+                      <h3 className="text-sm font-semibold text-blue-900 mb-2">Task Prompt</h3>
+                      <p className="text-blue-800 whitespace-pre-wrap">{task.prompt}</p>
+                    </div>
+                  )}
+                  <div className="p-4 bg-gray-50 border border-gray-300 rounded">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Labeler Response</h3>
+                    <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono">
+                      {typeof submission.response_data === 'object' && 'text' in submission.response_data
+                        ? String(submission.response_data.text)
+                        : JSON.stringify(submission.response_data, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {/* Legacy rubric-based response */}
+              {hasRubric && !hasGraders && rubric && (
+                <RubricForm
+                  rubric={rubric}
+                  data={submission.rubric_data as Record<string, unknown>}
+                  onChange={() => {}} // Read-only
+                  readOnly={true}
+                />
+              )}
+
+              {!hasGraders && !hasRubric && (
+                <div className="text-center py-12 bg-gray-50 rounded border-2 border-dashed border-gray-300">
+                  <p className="text-gray-600">No response data available</p>
+                </div>
+              )}
+            </div>
           )}
 
-          {tab === 'artifacts' && (
-            <ArtifactViewer artifacts={artifacts} />
+          {tab === 'grader_results' && hasGraders && submission.grader_results && (
+            <div className="space-y-4">
+              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded">
+                <h3 className="text-sm font-semibold text-indigo-900 mb-2">Auto-Grading Summary</h3>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-indigo-700">Total Score</p>
+                    <p className="text-2xl font-bold text-indigo-900">
+                      {typeof submission.grader_results === 'object' && 'totalScore' in submission.grader_results
+                        ? submission.grader_results.totalScore
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-indigo-700">Max Score</p>
+                    <p className="text-2xl font-bold text-indigo-900">
+                      {typeof submission.grader_results === 'object' && 'maxScore' in submission.grader_results
+                        ? submission.grader_results.maxScore
+                        : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-indigo-700">Percentage</p>
+                    <p className="text-2xl font-bold text-indigo-900">
+                      {submission.score !== null && submission.score !== undefined
+                        ? `${submission.score.toFixed(1)}%`
+                        : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {typeof submission.grader_results === 'object' &&
+                'graderResults' in submission.grader_results &&
+                Array.isArray(submission.grader_results.graderResults) && (
+                  <div className="space-y-3">
+                    {submission.grader_results.graderResults.map((result: Record<string, unknown>, index: number) => (
+                      <div key={index} className="border border-gray-300 rounded p-4 bg-white">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900">
+                              {String(result.graderName || `Grader ${index + 1}`)}
+                            </h4>
+                            <p className="text-sm text-gray-600 mt-1">
+                              Score: <span className="font-medium">{String(result.score)}</span> /{' '}
+                              <span className="font-medium">{String(result.maxScore)}</span>
+                            </p>
+                          </div>
+                          <div>
+                            {result.passed ? (
+                              <span className="px-3 py-1 bg-green-100 text-green-800 rounded text-sm font-medium">
+                                ✓ Passed
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 bg-red-100 text-red-800 rounded text-sm font-medium">
+                                ✗ Failed
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {result.details && typeof result.details === 'object' && (
+                          <div className="mt-3 space-y-2">
+                            <p className="text-xs font-semibold text-gray-700 uppercase">Details</p>
+                            {Object.entries(result.details).map(([key, value]) => {
+                              if (typeof value === 'object' && value !== null) {
+                                const detail = value as Record<string, unknown>
+                                return (
+                                  <div key={key} className="bg-gray-50 border border-gray-200 rounded p-2 text-sm">
+                                    <p className="font-medium text-gray-900">{key}</p>
+                                    <div className="mt-1 space-y-1 text-xs">
+                                      {detail.expected !== undefined && (
+                                        <p className="text-gray-600">
+                                          Expected: <span className="font-mono">{String(detail.expected)}</span>
+                                        </p>
+                                      )}
+                                      {detail.actual !== undefined && (
+                                        <p className="text-gray-600">
+                                          Actual: <span className="font-mono">{String(detail.actual)}</span>
+                                        </p>
+                                      )}
+                                      {detail.passed !== undefined && (
+                                        <p className={detail.passed ? 'text-green-600' : 'text-red-600'}>
+                                          {detail.passed ? '✓ Passed' : '✗ Failed'}
+                                        </p>
+                                      )}
+                                      {detail.weight !== undefined && (
+                                        <p className="text-gray-500">Weight: {String(detail.weight)}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )
+                              }
+                              return null
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+            </div>
           )}
         </div>
 

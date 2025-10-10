@@ -1,5 +1,50 @@
 export type TaskStatus = 'draft' | 'assigned' | 'in_progress' | 'submitted' | 'reviewed' | 'completed'
 
+// New grader-based types
+export type GraderType = 'xml' | 'json' | 'text' | 'number'
+export type ComparatorType = 'equals' | 'contains' | 'range' | 'regex'
+
+export interface ComparatorConfig {
+  type: ComparatorType
+  config: {
+    expected?: string | number | boolean
+    min?: number
+    max?: number
+    pattern?: string
+    [key: string]: unknown
+  }
+}
+
+export interface GraderStructureField {
+  id: string
+  name: string
+  type: 'int' | 'string' | 'boolean' | 'float'
+  weight: number
+  comparator: ComparatorConfig
+}
+
+export interface GraderConfig {
+  type: GraderType
+  name: string
+  config: {
+    structure?: GraderStructureField[]
+    [key: string]: unknown
+  }
+  weight: number
+}
+
+export interface TaskDefinition {
+  name: string
+  description?: string
+  prompt: string
+  graders: GraderConfig[]
+}
+
+export interface BulkTaskUpload {
+  tasks: TaskDefinition[]
+}
+
+// Legacy rubric types (keeping for backward compatibility during migration)
 export type RubricFieldType = 'text' | 'number' | 'select' | 'multiselect' | 'textarea' | 'rating' | 'boolean'
 
 export interface RubricField {
@@ -22,6 +67,8 @@ export interface Task {
   id: string
   title: string
   description: string | null
+  prompt: string | null
+  graders: GraderConfig[] | null
   status: TaskStatus
   deadline: string | null
   created_by: string
@@ -62,7 +109,10 @@ export interface Submission {
   id: string
   task_id: string
   labeler_id: string
-  rubric_data: Record<string, unknown> // Filled rubric data
+  response_data: Record<string, unknown> // Labeler's response
+  rubric_data: Record<string, unknown> | null // Legacy support
+  grader_results: Record<string, unknown> | null // Auto-grading results
+  score: number | null // Calculated score
   status: TaskStatus
   feedback: string | null
   reviewed_by: string | null

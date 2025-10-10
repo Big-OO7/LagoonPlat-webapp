@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import type { Task, Rubric, Submission } from '@/types/database'
-import RubricForm from './RubricForm'
+import type { Task, Submission } from '@/types/database'
+import { evaluateResponse } from '@/lib/grader'
 
 interface LabelerTaskDetailProps {
   taskId: string
@@ -14,9 +14,8 @@ interface LabelerTaskDetailProps {
 
 export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit }: LabelerTaskDetailProps) {
   const [task, setTask] = useState<Task | null>(null)
-  const [rubric, setRubric] = useState<Rubric | null>(null)
   const [submission, setSubmission] = useState<Submission | null>(null)
-  const [rubricData, setRubricData] = useState<Record<string, unknown>>({})
+  const [responseText, setResponseText] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const supabase = createClient()
@@ -37,15 +36,6 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
 
     if (taskData) setTask(taskData)
 
-    // Load rubric
-    const { data: rubricData } = await supabase
-      .from('rubrics')
-      .select('*')
-      .eq('task_id', taskId)
-      .single()
-
-    if (rubricData) setRubric(rubricData)
-
     // Load existing submission
     const { data: submissionData } = await supabase
       .from('submissions')
@@ -56,35 +46,48 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
 
     if (submissionData) {
       setSubmission(submissionData)
-      setRubricData(submissionData.rubric_data as Record<string, unknown>)
+      // Load previous response if exists
+      if (submissionData.response_data && typeof submissionData.response_data === 'object' && 'text' in submissionData.response_data) {
+        setResponseText(String(submissionData.response_data.text) || '')
+      }
     }
 
     setLoading(false)
   }
 
   const handleSubmit = async () => {
-    if (!task || !rubric) return
+    if (!task) return
 
-    // Validate required fields
-    const missingRequired = rubric.schema.fields
-      .filter(f => f.required)
-      .find(f => !rubricData[f.id] || rubricData[f.id] === '')
-
-    if (missingRequired) {
-      alert(`Please fill in the required field: ${missingRequired.label}`)
+    if (!responseText.trim()) {
+      alert('Please provide a response before submitting.')
       return
     }
 
     setSubmitting(true)
 
     try {
+      // Evaluate the response with graders
+      let graderResults = null
+      let score = null
+
+      if (task.graders && Array.isArray(task.graders) && task.graders.length > 0) {
+        const evaluation = await evaluateResponse(responseText, task.graders)
+        graderResults = evaluation
+        score = evaluation.percentageScore
+      }
+
+      const responseData = { text: responseText }
+
       if (submission) {
         // Update existing submission
         const { error } = await supabase
           .from('submissions')
           .update({
-            rubric_data: rubricData,
+            response_data: responseData,
+            grader_results: graderResults,
+            score: score,
             status: 'submitted',
+            submitted_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq('id', submission.id)
@@ -97,8 +100,11 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           .insert({
             task_id: taskId,
             labeler_id: labelerId,
-            rubric_data: rubricData,
+            response_data: responseData,
+            grader_results: graderResults,
+            score: score,
             status: 'submitted',
+            submitted_at: new Date().toISOString(),
           })
 
         if (error) throw error
@@ -125,12 +131,14 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     setSubmitting(true)
 
     try {
+      const responseData = { text: responseText }
+
       if (submission) {
         // Update existing submission
         const { error } = await supabase
           .from('submissions')
           .update({
-            rubric_data: rubricData,
+            response_data: responseData,
             updated_at: new Date().toISOString(),
           })
           .eq('id', submission.id)
@@ -143,7 +151,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           .insert({
             task_id: taskId,
             labeler_id: labelerId,
-            rubric_data: rubricData,
+            response_data: responseData,
             status: 'in_progress',
           })
 
@@ -194,7 +202,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     }
   }
 
-  if (loading || !task || !rubric) {
+  if (loading || !task) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-lg p-8">
@@ -208,6 +216,13 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const isReadOnly = submission?.status === 'reviewed'
   const canUnsubmit = submission?.status === 'submitted'
 
+  // Get example format from graders
+  const exampleFormat = task.graders?.[0]?.type === 'xml'
+    ? '<answer>your answer here</answer>'
+    : task.graders?.[0]?.type === 'json'
+    ? '{"answer": "your answer here"}'
+    : 'Your answer here'
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-lg max-w-5xl w-full my-8">
@@ -216,12 +231,19 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-gray-900">{task.title}</h2>
               {task.description && (
-                <p className="text-gray-600 mt-2 whitespace-pre-wrap">{task.description}</p>
+                <p className="text-gray-600 mt-2 text-sm whitespace-pre-wrap">{task.description}</p>
+              )}
+              {submission?.score !== null && submission?.score !== undefined && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm font-medium text-blue-900">
+                    Score: {submission.score.toFixed(1)}%
+                  </p>
+                </div>
               )}
               {submission?.reviewed_at && submission.feedback && (
                 <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
                   <p className="text-sm font-medium text-green-900">Admin Feedback:</p>
-                  <p className="text-sm text-green-800 mt-1">{submission.feedback}</p>
+                  <p className="text-sm text-green-800 mt-1 whitespace-pre-wrap">{submission.feedback}</p>
                 </div>
               )}
               {canUnsubmit && (
@@ -240,13 +262,44 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           </div>
         </div>
 
-        <div className="p-6 max-h-[60vh] overflow-y-auto">
-          <RubricForm
-            rubric={rubric}
-            data={rubricData}
-            onChange={setRubricData}
-            readOnly={isReadOnly}
-          />
+        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+          {/* Prompt Section */}
+          {task.prompt && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Task Prompt</h3>
+              <p className="text-blue-800 whitespace-pre-wrap">{task.prompt}</p>
+            </div>
+          )}
+
+          {/* Response Input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Your Response *
+            </label>
+            <textarea
+              value={responseText}
+              onChange={(e) => setResponseText(e.target.value)}
+              disabled={isReadOnly}
+              rows={12}
+              placeholder={`Example format: ${exampleFormat}`}
+              className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {task.graders?.[0]?.type === 'xml' && 'Provide your response in XML format'}
+              {task.graders?.[0]?.type === 'json' && 'Provide your response in JSON format'}
+              {(!task.graders || task.graders.length === 0 || (task.graders[0].type !== 'xml' && task.graders[0].type !== 'json')) && 'Enter your response above'}
+            </p>
+          </div>
+
+          {/* Grader Info */}
+          {task.graders && task.graders.length > 0 && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Evaluation Criteria</h3>
+              <p className="text-xs text-gray-600">
+                This task will be automatically evaluated using {task.graders.length} grader{task.graders.length > 1 ? 's' : ''}.
+              </p>
+            </div>
+          )}
         </div>
 
         {!isReadOnly && !canUnsubmit && (

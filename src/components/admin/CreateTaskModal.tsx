@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import type { RubricField } from '@/types/database'
+import type { BulkTaskUpload, TaskDefinition } from '@/types/database'
 
 interface CreateTaskModalProps {
   userId: string
@@ -10,98 +10,88 @@ interface CreateTaskModalProps {
   onSuccess: () => void
 }
 
-interface RubricJson {
-  name: string
-  description?: string
-  fields: RubricField[]
-}
-
 export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTaskModalProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  // Task fields
-  const [taskName, setTaskName] = useState('')
-  const [taskContent, setTaskContent] = useState('')
-
-  // Rubric
-  const [rubricContent, setRubricContent] = useState('')
+  // Bulk JSON upload
+  const [bulkJson, setBulkJson] = useState('')
 
   const supabase = createClient()
 
   const handleSubmit = async () => {
     setLoading(true)
     setError(null)
+    setSuccessMessage(null)
 
     try {
-      // Validate task name
-      if (!taskName.trim()) {
-        throw new Error('Task name is required')
+      // Validate JSON input
+      if (!bulkJson.trim()) {
+        throw new Error('Please provide task JSON')
       }
 
-      // Validate task content
-      if (!taskContent.trim()) {
-        throw new Error('Task content is required')
-      }
-
-      // Validate rubric
-      if (!rubricContent.trim()) {
-        throw new Error('Rubric is required')
-      }
-
-      // Parse rubric JSON if provided
-      let rubricData: RubricJson
+      // Parse the bulk upload JSON
+      let bulkData: BulkTaskUpload
       try {
-        rubricData = JSON.parse(rubricContent)
+        bulkData = JSON.parse(bulkJson)
       } catch (err) {
-        throw new Error('Invalid rubric JSON format. Please provide valid JSON.')
+        throw new Error('Invalid JSON format. Please check your syntax.')
       }
 
-      if (!rubricData.name) {
-        throw new Error('Rubric JSON must include a name field')
+      // Validate structure
+      if (!bulkData.tasks || !Array.isArray(bulkData.tasks)) {
+        throw new Error('JSON must contain a "tasks" array')
       }
 
-      if (!rubricData.fields || !Array.isArray(rubricData.fields) || rubricData.fields.length === 0) {
-        throw new Error('Rubric JSON must include a fields array with at least one field')
+      if (bulkData.tasks.length === 0) {
+        throw new Error('At least one task is required')
       }
 
-      // 1. Create the task
-      const { data: task, error: taskError } = await supabase
-        .from('tasks')
-        .insert({
-          title: taskName.trim(),
-          description: taskContent.trim(),
-          created_by: userId,
-          status: 'draft',
-        })
-        .select()
-        .single()
+      // Validate each task
+      bulkData.tasks.forEach((task, index) => {
+        if (!task.name) {
+          throw new Error(`Task ${index + 1}: "name" is required`)
+        }
+        if (!task.prompt) {
+          throw new Error(`Task ${index + 1}: "prompt" is required`)
+        }
+        if (!task.graders || !Array.isArray(task.graders) || task.graders.length === 0) {
+          throw new Error(`Task ${index + 1}: At least one grader is required`)
+        }
+      })
 
-      if (taskError) throw taskError
+      // Insert all tasks
+      const createdTasks: string[] = []
 
-      // 2. Upload task content to storage as text file
-      const taskBlob = new Blob([taskContent], { type: 'text/plain' })
-      const taskFileName = `tasks/${task.id}/task.txt`
-      await supabase.storage.from('artifacts').upload(taskFileName, taskBlob)
+      for (const taskDef of bulkData.tasks) {
+        const { data: task, error: taskError } = await supabase
+          .from('tasks')
+          .insert({
+            title: taskDef.name,
+            description: taskDef.description || null,
+            prompt: taskDef.prompt,
+            graders: taskDef.graders,
+            created_by: userId,
+            status: 'draft',
+          })
+          .select()
+          .single()
 
-      // 3. Upload rubric JSON to storage
-      const rubricBlob = new Blob([rubricContent], { type: 'application/json' })
-      const rubricFileName = `tasks/${task.id}/rubric.json`
-      await supabase.storage.from('artifacts').upload(rubricFileName, rubricBlob)
+        if (taskError) {
+          throw new Error(`Failed to create task "${taskDef.name}": ${taskError.message}`)
+        }
 
-      // 4. Create the rubric
-      const { error: rubricError } = await supabase
-        .from('rubrics')
-        .insert({
-          task_id: task.id,
-          name: rubricData.name,
-          description: rubricData.description || '',
-          schema: { fields: rubricData.fields },
-        })
+        createdTasks.push(task.title)
+      }
 
-      if (rubricError) throw rubricError
+      setSuccessMessage(`Successfully created ${createdTasks.length} task(s): ${createdTasks.join(', ')}`)
+      setBulkJson('')
 
-      onSuccess()
+      // Auto-close after 2 seconds
+      setTimeout(() => {
+        onSuccess()
+      }, 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -109,76 +99,92 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
     }
   }
 
+  const exampleJson = `{
+  "tasks": [
+    {
+      "name": "Simple Math Task",
+      "description": "Test basic arithmetic",
+      "prompt": "What is 5 + 10?",
+      "graders": [
+        {
+          "type": "xml",
+          "name": "Math Grader",
+          "config": {
+            "structure": [
+              {
+                "id": "answer",
+                "name": "answer",
+                "type": "int",
+                "weight": 1,
+                "comparator": {
+                  "type": "equals",
+                  "config": {
+                    "expected": 15
+                  }
+                }
+              }
+            ]
+          },
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}`
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">Create New Task</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Bulk Upload Tasks</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Enter task name, content, and rubric JSON
+            Upload multiple tasks at once using JSON format
           </p>
         </div>
 
         <div className="p-6 space-y-6">
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded">
-              {error}
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+              <svg className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-800">{error}</p>
+              </div>
+              <button onClick={() => setError(null)} className="text-red-600 hover:text-red-800">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
             </div>
           )}
 
-          {/* Task Section */}
-          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">1. Task Details</h3>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Task Name *
-                </label>
-                <input
-                  type="text"
-                  value={taskName}
-                  onChange={(e) => setTaskName(e.target.value)}
-                  placeholder="e.g., Review Financial Report Q4 2024"
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Task Content *
-                </label>
-                <textarea
-                  value={taskContent}
-                  onChange={(e) => setTaskContent(e.target.value)}
-                  rows={10}
-                  placeholder="Copy and paste the full task description here..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Paste the complete task instructions that labelers will see
-                </p>
-              </div>
+          {successMessage && (
+            <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-3">
+              <svg className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <p className="text-sm font-medium text-green-800">{successMessage}</p>
             </div>
-          </div>
+          )}
 
-          {/* Rubric Section */}
+          {/* Task JSON Input */}
           <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">2. Rubric (JSON)</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">Paste Task JSON</h3>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Paste Rubric JSON *
+                JSON containing tasks array *
               </label>
               <textarea
-                value={rubricContent}
-                onChange={(e) => setRubricContent(e.target.value)}
-                rows={10}
-                placeholder={`{\n  "name": "Review Rubric",\n  "description": "Evaluation criteria",\n  "fields": [\n    {\n      "id": "rating",\n      "label": "Quality Rating",\n      "type": "rating",\n      "required": true\n    }\n  ]\n}`}
-                className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                value={bulkJson}
+                onChange={(e) => setBulkJson(e.target.value)}
+                rows={15}
+                placeholder={exampleJson}
+                className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Paste the rubric JSON directly
+              <p className="text-xs text-gray-500 mt-2">
+                Paste your JSON with a &quot;tasks&quot; array. Each task must have: name, prompt, and graders.
               </p>
             </div>
           </div>
@@ -186,13 +192,27 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
           {/* Help Section */}
           <div className="p-4 bg-blue-50 border border-blue-200 rounded">
             <p className="text-sm text-blue-900 font-medium mb-2">
-              📖 Rubric Format Reference
+              📖 Format Example
             </p>
-            <p className="text-xs text-blue-800">
-              The rubric must be valid JSON with a &quot;name&quot; field and a &quot;fields&quot; array.
-              See <code className="bg-blue-100 px-1 py-0.5 rounded">examples/rubric-example.json</code>{' '}
-              for the complete format.
-            </p>
+            <pre className="text-xs text-blue-800 bg-blue-100 p-3 rounded overflow-x-auto">
+{`{
+  "tasks": [
+    {
+      "name": "Task Name",
+      "description": "Optional description",
+      "prompt": "Question for labelers",
+      "graders": [
+        {
+          "type": "xml",
+          "name": "Grader Name",
+          "config": { "structure": [...] },
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}`}
+            </pre>
           </div>
         </div>
 
@@ -210,7 +230,7 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
             className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium disabled:opacity-50"
             disabled={loading}
           >
-            {loading ? 'Creating Task...' : 'Create Task'}
+            {loading ? 'Uploading Tasks...' : 'Upload Tasks'}
           </button>
         </div>
       </div>
