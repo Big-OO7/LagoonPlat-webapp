@@ -109,14 +109,24 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       let score = null
 
       if (task.graders && Array.isArray(task.graders) && task.graders.length > 0) {
-        const evaluation = await evaluateResponse(responseToGrade, task.graders)
-        graderResults = evaluation
-        score = evaluation.percentageScore
+        console.log('Evaluating response:', responseToGrade)
+        console.log('With graders:', task.graders)
+        try {
+          const evaluation = await evaluateResponse(responseToGrade, task.graders)
+          console.log('Evaluation result:', evaluation)
+          graderResults = evaluation
+          score = evaluation.percentageScore
+        } catch (evalError) {
+          console.error('Grader evaluation failed:', evalError)
+          throw new Error(`Grading failed: ${evalError instanceof Error ? evalError.message : 'Unknown grading error'}`)
+        }
       }
 
       const responseData = hasStructuredGrader
         ? { formData: formResponses, generatedResponse: responseToGrade }
         : { text: responseText }
+
+      console.log('Submitting response data:', responseData)
 
       if (submission) {
         // Update existing submission
