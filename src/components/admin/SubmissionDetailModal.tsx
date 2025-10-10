@@ -248,7 +248,7 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                             <p className="text-sm text-gray-900 mt-1">{String(value)}</p>
                           </div>
                         ))}
-                        {submission.response_data.generatedResponse && (
+                        {submission.response_data.generatedResponse ? (
                           <details className="mt-3">
                             <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-800">
                               View generated XML/JSON
@@ -257,7 +257,7 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                               {String(submission.response_data.generatedResponse)}
                             </pre>
                           </details>
-                        )}
+                        ) : null}
                       </div>
                     ) : (
                       <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono">
