@@ -292,12 +292,59 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
             </p>
           </div>
 
-          {/* Grader Info */}
+          {/* Grader Info - Show expected fields */}
           {task.graders && task.graders.length > 0 && (
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Evaluation Criteria</h3>
-              <p className="text-xs text-gray-600">
-                This task will be automatically evaluated using {task.graders.length} grader{task.graders.length > 1 ? 's' : ''}.
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Expected Response Format</h3>
+              {task.graders.map((grader, index) => (
+                <div key={index} className="mt-2">
+                  {grader.config.structure && grader.config.structure.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-gray-700 mb-2">
+                        Required fields ({grader.type.toUpperCase()} format):
+                      </p>
+                      <div className="space-y-1">
+                        {grader.config.structure.map((field, fieldIndex) => (
+                          <div key={fieldIndex} className="text-xs text-gray-600 font-mono bg-white p-2 rounded border border-gray-300">
+                            <span className="font-semibold text-blue-700">{field.name}</span>
+                            {' '}
+                            <span className="text-gray-500">({field.type})</span>
+                            {field.comparator.config.expected !== undefined && (
+                              <span className="text-gray-600">
+                                {' '}- Expected: <span className="text-green-700 font-semibold">{String(field.comparator.config.expected)}</span>
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {grader.type === 'xml' && (
+                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                          <p className="text-xs font-medium text-blue-900 mb-1">Example XML format:</p>
+                          <pre className="text-xs text-blue-800 font-mono">
+                            {grader.config.structure.map(f => `<${f.name}>${String(f.comparator.config.expected || 'your answer')}</${f.name}>`).join('\n')}
+                          </pre>
+                        </div>
+                      )}
+                      {grader.type === 'json' && (
+                        <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                          <p className="text-xs font-medium text-blue-900 mb-1">Example JSON format:</p>
+                          <pre className="text-xs text-blue-800 font-mono">
+                            {JSON.stringify(
+                              Object.fromEntries(
+                                grader.config.structure.map(f => [f.name, f.comparator.config.expected || 'your answer'])
+                              ),
+                              null,
+                              2
+                            )}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <p className="text-xs text-gray-500 mt-3">
+                ✓ Your response will be automatically graded based on these criteria.
               </p>
             </div>
           )}

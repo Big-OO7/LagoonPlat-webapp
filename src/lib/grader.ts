@@ -238,8 +238,8 @@ function evaluateField(value: unknown, field: GraderStructureField): boolean {
 function parseXmlLikeResponse(responseText: string): Record<string, string> {
   const result: Record<string, string> = {}
 
-  // Match <key>value</key> patterns
-  const regex = /<(\w+)>(.*?)<\/\1>/gs
+  // Match <key>value</key> patterns ([\s\S] matches any character including newlines)
+  const regex = /<(\w+)>([\s\S]*?)<\/\1>/g
   let match
 
   while ((match = regex.exec(responseText)) !== null) {
@@ -249,7 +249,7 @@ function parseXmlLikeResponse(responseText: string): Record<string, string> {
     // Check if value contains nested XML tags
     if (trimmedValue.includes('<')) {
       // Parse nested tags recursively
-      const nestedRegex = /<(\w+)>(.*?)<\/\1>/gs
+      const nestedRegex = /<(\w+)>([\s\S]*?)<\/\1>/g
       let nestedMatch
       while ((nestedMatch = nestedRegex.exec(trimmedValue)) !== null) {
         const [, nestedKey, nestedValue] = nestedMatch
