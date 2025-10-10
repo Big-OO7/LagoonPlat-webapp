@@ -1,4 +1,4 @@
-# LagoonPlat - Data Labeling Platform
+# Tabulatorum datorum notandorum - Data Labeling Platform
 
 A Next.js application with Supabase authentication featuring role-based access control for Admin and Labeler users.
 
@@ -36,8 +36,8 @@ A Next.js application with Supabase authentication featuring role-based access c
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Big-OO7/LagoonPlat-webapp.git
-cd LagoonPlat-webapp
+git clone https://github.com/Big-OO7/Tabulatorum-datorum-notandorum-webapp.git
+cd Tabulatorum-datorum-notandorum-webapp
 ```
 
 2. Install dependencies:
