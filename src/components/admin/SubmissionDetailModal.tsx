@@ -275,16 +275,20 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                   <div>
                     <p className="text-indigo-700">Total Score</p>
                     <p className="text-2xl font-bold text-indigo-900">
-                      {typeof submission.grader_results === 'object' && 'totalScore' in submission.grader_results
-                        ? submission.grader_results.totalScore
+                      {typeof submission.grader_results === 'object' &&
+                       submission.grader_results !== null &&
+                       'totalScore' in submission.grader_results
+                        ? String(submission.grader_results.totalScore)
                         : 'N/A'}
                     </p>
                   </div>
                   <div>
                     <p className="text-indigo-700">Max Score</p>
                     <p className="text-2xl font-bold text-indigo-900">
-                      {typeof submission.grader_results === 'object' && 'maxScore' in submission.grader_results
-                        ? submission.grader_results.maxScore
+                      {typeof submission.grader_results === 'object' &&
+                       submission.grader_results !== null &&
+                       'maxScore' in submission.grader_results
+                        ? String(submission.grader_results.maxScore)
                         : 'N/A'}
                     </p>
                   </div>
