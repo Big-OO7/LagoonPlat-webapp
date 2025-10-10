@@ -233,17 +233,32 @@ function evaluateField(value: unknown, field: GraderStructureField): boolean {
 /**
  * Parses XML-like response (simple key-value extraction)
  * Example: <answer>15</answer> -> { answer: "15" }
+ * Also handles one level of nesting: <root><answer>15</answer></root> -> { answer: "15" }
  */
 function parseXmlLikeResponse(responseText: string): Record<string, string> {
   const result: Record<string, string> = {}
 
   // Match <key>value</key> patterns
-  const regex = /<(\w+)>(.*?)<\/\1>/g
+  const regex = /<(\w+)>(.*?)<\/\1>/gs
   let match
 
   while ((match = regex.exec(responseText)) !== null) {
     const [, key, value] = match
-    result[key] = value.trim()
+    const trimmedValue = value.trim()
+
+    // Check if value contains nested XML tags
+    if (trimmedValue.includes('<')) {
+      // Parse nested tags recursively
+      const nestedRegex = /<(\w+)>(.*?)<\/\1>/gs
+      let nestedMatch
+      while ((nestedMatch = nestedRegex.exec(trimmedValue)) !== null) {
+        const [, nestedKey, nestedValue] = nestedMatch
+        result[nestedKey] = nestedValue.trim()
+      }
+    } else {
+      // Simple value, store directly
+      result[key] = trimmedValue
+    }
   }
 
   return result

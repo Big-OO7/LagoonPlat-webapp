@@ -119,7 +119,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       onSubmit()
     } catch (error) {
       console.error('Error submitting:', error)
-      alert('Failed to submit. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      alert(`Failed to submit: ${errorMessage}\n\nPlease check the console for details.`)
     } finally {
       setSubmitting(false)
     }
@@ -281,12 +282,12 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
               onChange={(e) => setResponseText(e.target.value)}
               disabled={isReadOnly}
               rows={12}
-              placeholder={`Example format: ${exampleFormat}`}
+              placeholder={exampleFormat}
               className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
             <p className="text-xs text-gray-500 mt-1">
-              {task.graders?.[0]?.type === 'xml' && 'Provide your response in XML format'}
-              {task.graders?.[0]?.type === 'json' && 'Provide your response in JSON format'}
+              {task.graders?.[0]?.type === 'xml' && 'Provide your response in XML format. Use the exact field names shown in the placeholder above.'}
+              {task.graders?.[0]?.type === 'json' && 'Provide your response in valid JSON format. Use the exact field names shown in the placeholder above.'}
               {(!task.graders || task.graders.length === 0 || (task.graders[0].type !== 'xml' && task.graders[0].type !== 'json')) && 'Enter your response above'}
             </p>
           </div>
