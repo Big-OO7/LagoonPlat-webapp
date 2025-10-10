@@ -110,7 +110,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
 
       if (task.graders && Array.isArray(task.graders) && task.graders.length > 0) {
         console.log('Evaluating response:', responseToGrade)
-        console.log('With graders:', task.graders)
+        console.log('With graders:', JSON.stringify(task.graders, null, 2))
         try {
           const evaluation = await evaluateResponse(responseToGrade, task.graders)
           console.log('Evaluation result:', evaluation)
@@ -118,6 +118,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           score = evaluation.percentageScore
         } catch (evalError) {
           console.error('Grader evaluation failed:', evalError)
+          console.error('Error stack:', evalError instanceof Error ? evalError.stack : 'No stack')
           throw new Error(`Grading failed: ${evalError instanceof Error ? evalError.message : 'Unknown grading error'}`)
         }
       }
@@ -127,46 +128,67 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         : { text: responseText }
 
       console.log('Submitting response data:', responseData)
+      console.log('Grader results:', graderResults)
+      console.log('Score:', score)
 
       if (submission) {
         // Update existing submission
+        console.log('Updating existing submission:', submission.id)
+        const updateData = {
+          response_data: responseData,
+          grader_results: graderResults,
+          score: score,
+          status: 'submitted' as const,
+          submitted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+        console.log('Update data:', updateData)
+
         const { error } = await supabase
           .from('submissions')
-          .update({
-            response_data: responseData,
-            grader_results: graderResults,
-            score: score,
-            status: 'submitted',
-            submitted_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', submission.id)
 
-        if (error) throw error
+        if (error) {
+          console.error('Database update error:', error)
+          throw error
+        }
+        console.log('Submission updated successfully')
       } else {
         // Create new submission
+        console.log('Creating new submission')
+        const insertData = {
+          task_id: taskId,
+          labeler_id: labelerId,
+          response_data: responseData,
+          grader_results: graderResults,
+          score: score,
+          status: 'submitted' as const,
+          submitted_at: new Date().toISOString(),
+        }
+        console.log('Insert data:', insertData)
+
         const { error } = await supabase
           .from('submissions')
-          .insert({
-            task_id: taskId,
-            labeler_id: labelerId,
-            response_data: responseData,
-            grader_results: graderResults,
-            score: score,
-            status: 'submitted',
-            submitted_at: new Date().toISOString(),
-          })
+          .insert(insertData)
 
-        if (error) throw error
+        if (error) {
+          console.error('Database insert error:', error)
+          throw error
+        }
+        console.log('Submission created successfully')
 
         // Update task status
+        console.log('Updating task status')
         await supabase
           .from('tasks')
           .update({ status: 'submitted' })
           .eq('id', taskId)
       }
 
+      console.log('Calling onSubmit callback')
       onSubmit()
+      console.log('Submission complete!')
     } catch (error) {
       console.error('Error submitting:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
