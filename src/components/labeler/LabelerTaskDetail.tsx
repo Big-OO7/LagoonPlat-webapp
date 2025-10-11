@@ -17,6 +17,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [responseText, setResponseText] = useState('')
   const [formResponses, setFormResponses] = useState<Record<string, string>>({})
+  const [editedPrompt, setEditedPrompt] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const supabase = createClient()
@@ -35,7 +36,10 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       .eq('id', taskId)
       .single()
 
-    if (taskData) setTask(taskData)
+    if (taskData) {
+      setTask(taskData)
+      setEditedPrompt(taskData.prompt || '')
+    }
 
     // Load existing submission
     const { data: submissionData } = await supabase
@@ -298,6 +302,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
 
   const isReadOnly = submission?.status === 'reviewed'
   const canUnsubmit = submission?.status === 'submitted'
+  const needsRevision = submission?.status === 'revision_requested'
 
   // Check if task uses structured graders (form-based) or plain text
   const hasStructuredGrader = task.graders?.some(g =>
@@ -328,10 +333,19 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
                   </p>
                 </div>
               )}
-              {submission?.reviewed_at && submission.feedback && (
+              {submission?.reviewed_at && submission.feedback && submission.status === 'reviewed' && (
                 <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
                   <p className="text-sm font-medium text-green-900">Admin Feedback:</p>
                   <p className="text-sm text-green-800 mt-1 whitespace-pre-wrap">{submission.feedback}</p>
+                </div>
+              )}
+              {needsRevision && submission.feedback && (
+                <div className="mt-3 p-3 bg-orange-50 border border-orange-300 rounded">
+                  <p className="text-sm font-medium text-orange-900">⚠️ Revision Requested</p>
+                  <p className="text-sm text-orange-800 mt-1 whitespace-pre-wrap">{submission.feedback}</p>
+                  <p className="text-xs text-orange-700 mt-2 italic">
+                    Please address the feedback above and resubmit your work.
+                  </p>
                 </div>
               )}
               {canUnsubmit && (
@@ -351,11 +365,25 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         </div>
 
         <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-          {/* Prompt Section */}
+          {/* Prompt Section - Editable */}
           {task.prompt && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-blue-900 mb-2">Task Prompt</h3>
-              <p className="text-blue-800 whitespace-pre-wrap">{task.prompt}</p>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-blue-900">Task Prompt</h3>
+                {!isReadOnly && !canUnsubmit && (
+                  <span className="text-xs text-blue-700 italic">✏️ Editable</span>
+                )}
+              </div>
+              <textarea
+                value={editedPrompt}
+                onChange={(e) => setEditedPrompt(e.target.value)}
+                disabled={isReadOnly || canUnsubmit}
+                rows={4}
+                className="w-full px-3 py-2 bg-white border border-blue-300 rounded text-blue-900 whitespace-pre-wrap focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-blue-50 disabled:cursor-not-allowed text-sm"
+              />
+              <p className="text-xs text-blue-700 mt-1">
+                {isReadOnly || canUnsubmit ? 'Read-only' : 'You can edit this prompt to clarify your understanding'}
+              </p>
             </div>
           )}
 
@@ -425,8 +453,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           )}
         </div>
 
-        {!isReadOnly && !canUnsubmit && (
-          <div className="p-6 border-t border-gray-200 flex justify-between">
+        {(!isReadOnly && !canUnsubmit) || needsRevision ? (
+          <div className={`p-6 border-t border-gray-200 flex justify-between ${needsRevision ? 'bg-orange-50' : ''}`}>
             <button
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
@@ -445,14 +473,14 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
               </button>
               <button
                 onClick={handleSubmit}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
+                className={`px-4 py-2 ${needsRevision ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'} text-white rounded disabled:opacity-50`}
                 disabled={submitting}
               >
-                {submitting ? 'Submitting...' : 'Submit Task'}
+                {submitting ? 'Submitting...' : needsRevision ? 'Resubmit Task' : 'Submit Task'}
               </button>
             </div>
           </div>
-        )}
+        ) : null}
 
         {canUnsubmit && (
           <div className="p-6 border-t border-gray-200 flex justify-between bg-gray-50">

@@ -1,4 +1,4 @@
-export type TaskStatus = 'draft' | 'assigned' | 'in_progress' | 'submitted' | 'reviewed' | 'completed'
+export type TaskStatus = 'draft' | 'assigned' | 'in_progress' | 'submitted' | 'reviewed' | 'completed' | 'revision_requested'
 
 // New grader-based types
 export type GraderType = 'xml' | 'json' | 'text' | 'number'

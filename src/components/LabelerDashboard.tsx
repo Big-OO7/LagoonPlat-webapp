@@ -89,6 +89,7 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
       submitted: 'bg-purple-100 text-purple-800',
       reviewed: 'bg-green-100 text-green-800',
       completed: 'bg-green-200 text-green-900',
+      revision_requested: 'bg-orange-100 text-orange-800',
     }
     return colors[status] || 'bg-gray-100 text-gray-800'
   }

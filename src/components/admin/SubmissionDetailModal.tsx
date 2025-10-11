@@ -116,6 +116,44 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
     }
   }
 
+  const handleRequestRevision = async () => {
+    if (!submission) return
+
+    if (!feedback.trim()) {
+      alert('Please provide feedback explaining what needs to be revised.')
+      return
+    }
+
+    const confirmed = confirm(
+      'This will send the submission back to the labeler for revision. They will be able to edit and resubmit. Continue?'
+    )
+    if (!confirmed) return
+
+    setSubmitting(true)
+
+    try {
+      const { error } = await supabase
+        .from('submissions')
+        .update({
+          status: 'revision_requested',
+          feedback: feedback,
+          reviewed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', submission.id)
+
+      if (error) throw error
+
+      alert('Revision request sent successfully! The labeler can now edit and resubmit.')
+      onUpdate()
+    } catch (error) {
+      console.error('Error requesting revision:', error)
+      alert('Failed to request revision. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const handleUpdateFeedback = async () => {
     if (!submission) return
 
@@ -432,13 +470,22 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                   </button>
                 )}
                 {!isReviewed && (
-                  <button
-                    onClick={handleMarkAsReviewed}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-50"
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Submitting...' : 'Mark as Reviewed'}
-                  </button>
+                  <>
+                    <button
+                      onClick={handleRequestRevision}
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded disabled:opacity-50"
+                      disabled={submitting}
+                    >
+                      {submitting ? 'Requesting...' : 'Request Edits'}
+                    </button>
+                    <button
+                      onClick={handleMarkAsReviewed}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-50"
+                      disabled={submitting}
+                    >
+                      {submitting ? 'Approving...' : 'Approve & Mark Reviewed'}
+                    </button>
+                  </>
                 )}
               </div>
             </div>
