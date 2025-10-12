@@ -15,6 +15,8 @@ export default function TasksManager({ userId }: TasksManagerProps) {
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedTasks, setSelectedTasks] = useState<string[]>([])
+  const [deleting, setDeleting] = useState(false)
   const supabase = createClient()
 
   const loadTasks = async () => {
@@ -68,17 +70,104 @@ export default function TasksManager({ userId }: TasksManagerProps) {
     }
   }
 
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTasks(prev =>
+      prev.includes(taskId)
+        ? prev.filter(id => id !== taskId)
+        : [...prev, taskId]
+    )
+  }
+
+  const selectAllTasks = () => {
+    if (selectedTasks.length === tasks.length) {
+      setSelectedTasks([])
+    } else {
+      setSelectedTasks(tasks.map(t => t.id))
+    }
+  }
+
+  const handleBulkDeleteTasks = async () => {
+    if (selectedTasks.length === 0) return
+
+    const selectedTaskDetails = tasks.filter(t => selectedTasks.includes(t.id))
+    const taskTitles = selectedTaskDetails.map(t => t.title).join('\n- ')
+
+    const confirmed = confirm(
+      `You are about to delete ${selectedTasks.length} task(s):\n\n- ${taskTitles}\n\nThis will also delete for ALL selected tasks:\n- Associated rubrics\n- All artifacts\n- All assignments\n- All submissions\n\nThis action cannot be undone. Continue?`
+    )
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .in('id', selectedTasks)
+
+      if (error) throw error
+
+      alert(`Successfully deleted ${selectedTasks.length} task(s)!`)
+      setSelectedTasks([])
+      await loadTasks()
+    } catch (error) {
+      console.error('Error deleting tasks:', error)
+      alert('Failed to delete tasks: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Tasks Management</h2>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium"
-        >
-          + Create New Task
-        </button>
+        <div className="flex gap-3">
+          {tasks.length > 0 && (
+            <button
+              onClick={selectAllTasks}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium"
+            >
+              {selectedTasks.length === tasks.length ? 'Deselect All' : 'Select All'}
+            </button>
+          )}
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium"
+          >
+            + Create New Task
+          </button>
+        </div>
       </div>
+
+      {selectedTasks.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-red-900">
+                {selectedTasks.length} task(s) selected
+              </p>
+              <p className="text-xs text-red-700 mt-1">
+                Deleting will remove all associated data (rubrics, artifacts, assignments, submissions)
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedTasks([])}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 font-medium"
+              >
+                Clear Selection
+              </button>
+              <button
+                onClick={handleBulkDeleteTasks}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? 'Deleting...' : 'Delete Selected'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-center py-12">
@@ -100,9 +189,19 @@ export default function TasksManager({ userId }: TasksManagerProps) {
           {tasks.map((task) => (
             <div
               key={task.id}
-              className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+              className={`bg-white border rounded-lg p-6 hover:shadow-md transition-shadow ${
+                selectedTasks.includes(task.id)
+                  ? 'border-indigo-500 bg-indigo-50'
+                  : 'border-gray-200'
+              }`}
             >
-              <div className="flex justify-between items-start">
+              <div className="flex items-start gap-4">
+                <input
+                  type="checkbox"
+                  checked={selectedTasks.includes(task.id)}
+                  onChange={() => toggleTaskSelection(task.id)}
+                  className="w-5 h-5 text-indigo-600 rounded mt-1"
+                />
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
                     {task.title}
