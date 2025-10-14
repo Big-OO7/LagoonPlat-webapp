@@ -44,12 +44,26 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-indigo-600 text-white p-4">
+      <nav className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-600 text-white p-4 shadow-lg">
         <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Tabulatorum datorum notandorum Admin</h1>
+          <div className="flex items-center gap-3">
+            <a
+              href="https://www.withmetis.ai/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-2xl font-bold hover:text-indigo-200 transition-colors duration-200"
+            >
+              Metis
+            </a>
+            <span className="text-white/30 text-2xl font-thin">|</span>
+            <h1 className="text-2xl font-black bg-gradient-to-r from-yellow-200 via-pink-200 to-blue-200 bg-clip-text text-transparent hover:from-yellow-300 hover:via-pink-300 hover:to-blue-300 transition-all duration-300 cursor-default select-none tracking-wide" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+              NeoForge
+            </h1>
+            <span className="text-xs bg-indigo-500/50 px-2 py-1 rounded-full font-semibold">Admin</span>
+          </div>
           <button
             onClick={handleLogout}
-            className="bg-indigo-700 hover:bg-indigo-800 px-4 py-2 rounded"
+            className="bg-indigo-700 hover:bg-indigo-800 px-4 py-2 rounded transition-colors duration-200"
           >
             Logout
           </button>

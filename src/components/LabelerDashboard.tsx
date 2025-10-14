@@ -99,12 +99,26 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <nav className="bg-green-600 text-white p-4">
+      <nav className="bg-gradient-to-r from-green-600 via-green-700 to-emerald-600 text-white p-4 shadow-lg">
         <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Tabulatorum datorum notandorum Labeler</h1>
+          <div className="flex items-center gap-3">
+            <a
+              href="https://www.withmetis.ai/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-2xl font-bold hover:text-green-200 transition-colors duration-200"
+            >
+              Metis
+            </a>
+            <span className="text-white/30 text-2xl font-thin">|</span>
+            <h1 className="text-2xl font-black bg-gradient-to-r from-yellow-200 via-pink-200 to-blue-200 bg-clip-text text-transparent hover:from-yellow-300 hover:via-pink-300 hover:to-blue-300 transition-all duration-300 cursor-default select-none tracking-wide" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+              NeoForge
+            </h1>
+            <span className="text-xs bg-green-500/50 px-2 py-1 rounded-full font-semibold">Labeler</span>
+          </div>
           <button
             onClick={handleLogout}
-            className="bg-green-700 hover:bg-green-800 px-4 py-2 rounded"
+            className="bg-green-700 hover:bg-green-800 px-4 py-2 rounded transition-colors duration-200"
           >
             Logout
           </button>
