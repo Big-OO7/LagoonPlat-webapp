@@ -94,8 +94,8 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
-  const pendingTasks = tasks.filter(t => !t.submission)
-  const submittedTasks = tasks.filter(t => t.submission)
+  const pendingTasks = tasks.filter(t => !t.submission || t.submission.status === 'in_progress')
+  const submittedTasks = tasks.filter(t => t.submission?.status === 'submitted' || t.submission?.status === 'reviewed' || t.submission?.status === 'completed')
 
   return (
     <div className="min-h-screen bg-gray-50">
