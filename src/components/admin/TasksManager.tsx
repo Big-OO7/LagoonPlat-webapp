@@ -117,6 +117,51 @@ export default function TasksManager({ userId }: TasksManagerProps) {
     }
   }
 
+  const handleDuplicateTask = async (task: Task) => {
+    try {
+      // Generate new title with version number
+      let newTitle = task.title
+      const versionMatch = task.title.match(/\s+v(\d+)$/i)
+
+      if (versionMatch) {
+        // Increment existing version number
+        const currentVersion = parseInt(versionMatch[1], 10)
+        newTitle = task.title.replace(/\s+v\d+$/i, ` v${currentVersion + 1}`)
+      } else {
+        // Add v2 to the title
+        newTitle = `${task.title} v2`
+      }
+
+      // Create duplicate task
+      const { data: newTask, error } = await supabase
+        .from('tasks')
+        .insert({
+          title: newTitle,
+          description: task.description,
+          prompt: task.prompt,
+          graders: task.graders,
+          deadline: task.deadline,
+          created_by: userId,
+          status: 'draft' as const,
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      alert(`Task duplicated successfully as "${newTitle}"!`)
+      await loadTasks()
+
+      // Optionally open the new task for editing
+      if (newTask) {
+        setSelectedTaskId(newTask.id)
+      }
+    } catch (error) {
+      console.error('Error duplicating task:', error)
+      alert('Failed to duplicate task: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -221,6 +266,13 @@ export default function TasksManager({ userId }: TasksManagerProps) {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  <button
+                    onClick={() => handleDuplicateTask(task)}
+                    className="px-3 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded text-sm font-medium"
+                    title="Duplicate this task"
+                  >
+                    Duplicate
+                  </button>
                   <button
                     onClick={() => setSelectedTaskId(task.id)}
                     className="px-3 py-1 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded text-sm font-medium"
