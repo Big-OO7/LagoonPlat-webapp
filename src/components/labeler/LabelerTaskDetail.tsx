@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Task, Submission } from '@/types/database'
 import { evaluateResponse } from '@/lib/grader'
+import FillInTheBlankForm from './FillInTheBlankForm'
 
 interface LabelerTaskDetailProps {
   taskId: string
@@ -387,79 +388,19 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
             </div>
           )}
 
-          {/* Response Input - Form-based for structured graders */}
+          {/* Response Input - Fill-in-the-blank for structured graders */}
           {hasStructuredGrader ? (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">Your Response</h3>
-              {task.graders?.map((grader, graderIndex) => (
-                grader.config.structure && grader.config.structure.length > 0 && (
-                  <div key={graderIndex} className="border-2 border-green-200 rounded-lg p-4 bg-green-50">
-                    {/* Grader/Verifier Header */}
-                    <div className="mb-4 pb-3 border-b border-green-300">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold text-green-900 text-base">
-                            Verifier: {grader.name}
-                          </h4>
-                          <p className="text-xs text-green-700 mt-1">
-                            Type: {grader.type.toUpperCase()} | Weight: {grader.weight}
-                          </p>
-                        </div>
-                        <div className="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded">
-                          Grader #{graderIndex + 1}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Answer Fields */}
-                    <div className="space-y-3">
-                      {grader.config.structure.map((field, fieldIndex) => (
-                        <div key={fieldIndex} className="bg-white rounded-lg p-3 border border-green-300">
-                          <label className="block text-sm font-medium text-gray-900 mb-1">
-                            <div className="flex items-center justify-between">
-                              <span>
-                                {field.name} *
-                                <span className="text-xs text-gray-500 ml-2">({field.type})</span>
-                              </span>
-                              <span className="text-xs text-green-700 font-mono bg-green-100 px-2 py-0.5 rounded">
-                                Field ID: {field.id}
-                              </span>
-                            </div>
-                          </label>
-                          <input
-                            type={field.type === 'int' || field.type === 'float' ? 'number' : 'text'}
-                            value={formResponses[field.name] || ''}
-                            onChange={(e) => setFormResponses({
-                              ...formResponses,
-                              [field.name]: e.target.value
-                            })}
-                            disabled={isReadOnly || canUnsubmit}
-                            placeholder={`Enter ${field.name}...`}
-                            step={field.type === 'float' ? 'any' : undefined}
-                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          />
-                          <div className="mt-2 flex items-start gap-2 text-xs">
-                            {field.comparator.config.expected !== undefined && (
-                              <div className="flex-1 p-2 bg-blue-50 border border-blue-200 rounded">
-                                <span className="text-blue-700 font-medium">Expected:</span>{' '}
-                                <span className="text-blue-900 font-mono">{String(field.comparator.config.expected)}</span>
-                              </div>
-                            )}
-                            <div className="flex-1 p-2 bg-gray-50 border border-gray-200 rounded">
-                              <span className="text-gray-700 font-medium">Comparator:</span>{' '}
-                              <span className="text-gray-900 font-mono">{field.comparator.type}</span>
-                            </div>
-                            <div className="px-2 py-2 bg-indigo-50 border border-indigo-200 rounded">
-                              <span className="text-indigo-700 font-medium">Weight:</span>{' '}
-                              <span className="text-indigo-900 font-semibold">{field.weight}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              ))}
+              <p className="text-sm text-gray-600 mb-4">
+                Fill in each field between the XML tags below. Your response will be automatically formatted and graded.
+              </p>
+              <FillInTheBlankForm
+                graders={task.graders || []}
+                formResponses={formResponses}
+                onChange={setFormResponses}
+                disabled={isReadOnly || canUnsubmit}
+              />
             </div>
           ) : (
             /* Plain text response for text/number graders */
