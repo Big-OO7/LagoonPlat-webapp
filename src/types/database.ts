@@ -24,10 +24,11 @@ export interface GraderStructureField {
 }
 
 export interface GraderConfig {
-  type: GraderType
+  type: GraderType | 'unit_test'
   name: string
   config: {
     structure?: GraderStructureField[]
+    test_cases?: Array<{ id: string; expected_value?: unknown }>
     [key: string]: unknown
   }
   weight: number

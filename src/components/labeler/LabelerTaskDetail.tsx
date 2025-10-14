@@ -306,9 +306,13 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const needsRevision = submission?.status === 'revision_requested'
 
   // Check if task uses structured graders (form-based) or plain text
-  const hasStructuredGrader = task.graders && Array.isArray(task.graders) && task.graders.length > 0 && task.graders.some(g =>
-    g && g.config && g.config.structure && Array.isArray(g.config.structure) && g.config.structure.length > 0
-  )
+  const hasStructuredGrader = task.graders && Array.isArray(task.graders) && task.graders.length > 0 && task.graders.some(g => {
+    if (!g || !g.config) return false
+    // Support both structure (xml/json) and test_cases (unit_test)
+    const hasStructure = g.config.structure && Array.isArray(g.config.structure) && g.config.structure.length > 0
+    const hasTestCases = g.config.test_cases && Array.isArray(g.config.test_cases) && g.config.test_cases.length > 0
+    return hasStructure || hasTestCases
+  })
 
   // Debug logging
   console.log('Task graders:', task.graders)

@@ -24,8 +24,14 @@ export default function FillInTheBlankForm({
 
   return (
     <div className="space-y-6">
-      {graders.map((grader, graderIndex) => (
-        grader.config.structure && grader.config.structure.length > 0 && (
+      {graders.map((grader, graderIndex) => {
+        // Support both structure (xml/json) and test_cases (unit_test)
+        const hasStructure = grader.config.structure && grader.config.structure.length > 0
+        const hasTestCases = grader.config.test_cases && grader.config.test_cases.length > 0
+
+        if (!hasStructure && !hasTestCases) return null
+
+        return (
           <div key={graderIndex} className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg p-6">
             {/* Grader Header */}
             <div className="mb-4 pb-3 border-b border-green-400">
@@ -41,7 +47,8 @@ export default function FillInTheBlankForm({
 
             {/* XML Fill-in-the-blank format */}
             <div className="bg-white rounded-lg p-4 border border-gray-300 font-mono text-sm space-y-3">
-              {grader.config.structure.map((field, fieldIndex) => {
+              {/* For structure-based graders (xml/json) */}
+              {hasStructure && grader.config.structure!.map((field, fieldIndex) => {
                 const fieldValue = formResponses[field.name] || ''
                 const isNumber = field.type === 'int' || field.type === 'float'
 
@@ -72,7 +79,7 @@ export default function FillInTheBlankForm({
                         <span className="text-gray-600">
                           Weight: <span className="font-semibold text-indigo-600">{field.weight}</span>
                         </span>
-                        {field.comparator.config.expected !== undefined && (
+                        {field.comparator && field.comparator.config && field.comparator.config.expected !== undefined && (
                           <span className="text-blue-600">
                             Expected: <span className="font-semibold font-mono">{String(field.comparator.config.expected)}</span>
                           </span>
@@ -87,6 +94,49 @@ export default function FillInTheBlankForm({
                   </div>
                 )
               })}
+
+              {/* For test_cases-based graders (unit_test) */}
+              {hasTestCases && grader.config.test_cases!.map((testCase: { id: string; expected_value?: unknown }, fieldIndex: number) => {
+                const fieldValue = formResponses[testCase.id] || ''
+
+                return (
+                  <div key={fieldIndex} className="flex items-start gap-2">
+                    {/* Opening XML tag */}
+                    <span className="text-blue-600 select-none flex-shrink-0 mt-2">
+                      &lt;{testCase.id}&gt;
+                    </span>
+
+                    {/* Input field */}
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={fieldValue}
+                        onChange={(e) => handleFieldChange(testCase.id, e.target.value)}
+                        disabled={disabled}
+                        placeholder={`Enter value...`}
+                        className="w-full px-3 py-2 border-b-2 border-green-400 bg-yellow-50 focus:bg-white focus:border-green-600 rounded text-gray-900 font-sans focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+                      />
+
+                      {/* Field metadata */}
+                      <div className="mt-1 flex items-center gap-3 text-xs font-sans">
+                        <span className="text-gray-600">
+                          Test Case ID: <span className="font-semibold text-gray-800">{testCase.id}</span>
+                        </span>
+                        {testCase.expected_value !== null && testCase.expected_value !== undefined && (
+                          <span className="text-blue-600">
+                            Expected: <span className="font-semibold font-mono">{String(testCase.expected_value)}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Closing XML tag */}
+                    <span className="text-blue-600 select-none flex-shrink-0 mt-2">
+                      &lt;/{testCase.id}&gt;
+                    </span>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Helper text */}
@@ -95,7 +145,7 @@ export default function FillInTheBlankForm({
             </div>
           </div>
         )
-      ))}
+      })}
     </div>
   )
 }
