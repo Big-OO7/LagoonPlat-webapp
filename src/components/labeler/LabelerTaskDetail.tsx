@@ -71,26 +71,46 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     if (!task) return
 
     // Check if we're using form-based or text-based response
-    const hasStructuredGrader = task.graders?.some(g =>
-      (g.type === 'xml' || g.type === 'json') && g.config.structure && g.config.structure.length > 0
-    )
+    const hasStructuredGrader = task.graders?.some(g => {
+      if (!g || !g.config) return false
+      const hasStructure = g.config.structure && Array.isArray(g.config.structure) && g.config.structure.length > 0
+      const hasTestCases = g.config.test_cases && Array.isArray(g.config.test_cases) && g.config.test_cases.length > 0
+      return hasStructure || hasTestCases
+    })
 
     let responseToGrade = ''
 
     if (hasStructuredGrader) {
+      // Find the grader (either structure or test_cases based)
+      const grader = task.graders?.find(g => {
+        if (!g || !g.config) return false
+        return (g.config.structure && g.config.structure.length > 0) || (g.config.test_cases && g.config.test_cases.length > 0)
+      })
+
       // Validate form responses
-      const grader = task.graders?.find(g => g.config.structure && g.config.structure.length > 0)
-      if (grader && grader.config.structure) {
-        for (const field of grader.config.structure) {
-          if (!formResponses[field.name] || formResponses[field.name].trim() === '') {
-            alert(`Please fill in the "${field.name}" field before submitting.`)
-            return
+      if (grader) {
+        // For structure-based graders
+        if (grader.config.structure) {
+          for (const field of grader.config.structure) {
+            if (!formResponses[field.name] || formResponses[field.name].trim() === '') {
+              alert(`Please fill in the "${field.name}" field before submitting.`)
+              return
+            }
+          }
+        }
+        // For test_cases-based graders (unit_test)
+        if (grader.config.test_cases) {
+          for (const testCase of grader.config.test_cases) {
+            if (!formResponses[testCase.id] || formResponses[testCase.id].trim() === '') {
+              alert(`Please fill in the "${testCase.id}" field before submitting.`)
+              return
+            }
           }
         }
       }
 
       // Construct XML or JSON from form responses
-      if (grader?.type === 'xml') {
+      if (grader?.type === 'xml' || grader?.type === 'unit_test') {
         responseToGrade = Object.entries(formResponses)
           .map(([key, value]) => `<${key}>${value}</${key}>`)
           .join('\n')
@@ -211,9 +231,12 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     setSubmitting(true)
 
     try {
-      const hasStructuredGrader = task.graders?.some(g =>
-        (g.type === 'xml' || g.type === 'json') && g.config.structure && g.config.structure.length > 0
-      )
+      const hasStructuredGrader = task.graders?.some(g => {
+        if (!g || !g.config) return false
+        const hasStructure = g.config.structure && Array.isArray(g.config.structure) && g.config.structure.length > 0
+        const hasTestCases = g.config.test_cases && Array.isArray(g.config.test_cases) && g.config.test_cases.length > 0
+        return hasStructure || hasTestCases
+      })
 
       const responseData = hasStructuredGrader
         ? { formData: formResponses }
