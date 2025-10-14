@@ -196,6 +196,17 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
 
   const isReviewed = submission.status === 'reviewed'
 
+  const getStatusLabel = (status: string): string => {
+    const labels: Record<string, string> = {
+      in_progress: 'IN PROGRESS',
+      submitted: 'PENDING REVIEW',
+      reviewed: 'REVIEWED',
+      completed: 'COMPLETED',
+      revision_requested: 'REVISION REQUESTED',
+    }
+    return labels[status] || status.replace('_', ' ').toUpperCase()
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-lg max-w-5xl w-full my-8">
@@ -229,9 +240,15 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                 <span className={`px-3 py-1 rounded text-sm font-medium ${
                   submission.status === 'submitted'
                     ? 'bg-purple-100 text-purple-800'
-                    : 'bg-green-100 text-green-800'
+                    : submission.status === 'reviewed'
+                    ? 'bg-green-100 text-green-800'
+                    : submission.status === 'in_progress'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : submission.status === 'revision_requested'
+                    ? 'bg-orange-100 text-orange-800'
+                    : 'bg-gray-100 text-gray-800'
                 }`}>
-                  {submission.status.replace('_', ' ').toUpperCase()}
+                  {getStatusLabel(submission.status)}
                 </span>
               </div>
             </div>

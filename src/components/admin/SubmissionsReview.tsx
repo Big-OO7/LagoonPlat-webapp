@@ -72,6 +72,25 @@ export default function SubmissionsReview() {
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
+  const getDisplayStatus = (submission: SubmissionWithTask): string => {
+    // If submission has submitted_at but status is in_progress, treat it as submitted
+    if (submission.status === 'in_progress' && submission.submitted_at) {
+      return 'submitted'
+    }
+    return submission.status
+  }
+
+  const getStatusLabel = (status: string): string => {
+    const labels: Record<string, string> = {
+      in_progress: 'IN PROGRESS',
+      submitted: 'PENDING REVIEW',
+      reviewed: 'REVIEWED',
+      completed: 'COMPLETED',
+      revision_requested: 'REVISION REQUESTED',
+    }
+    return labels[status] || status.replace('_', ' ').toUpperCase()
+  }
+
   const filteredSubmissions = submissions.filter(sub => {
     if (filter === 'all') return true
     if (filter === 'submitted') return sub.status === 'submitted'
@@ -167,8 +186,8 @@ export default function SubmissionsReview() {
                         Submitted by: <span className="font-medium">{submission.labeler_email}</span>
                       </p>
                     </div>
-                    <span className={`px-3 py-1 rounded text-sm font-medium ${getStatusColor(submission.status)}`}>
-                      {submission.status.replace('_', ' ').toUpperCase()}
+                    <span className={`px-3 py-1 rounded text-sm font-medium ${getStatusColor(getDisplayStatus(submission))}`}>
+                      {getStatusLabel(getDisplayStatus(submission))}
                     </span>
                   </div>
 
