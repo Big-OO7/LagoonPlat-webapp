@@ -277,15 +277,81 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                     </div>
                   )}
                   <div className="p-4 bg-gray-50 border border-gray-300 rounded">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Labeler Response</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Labeler Response</h3>
                     {typeof submission.response_data === 'object' && 'formData' in submission.response_data ? (
-                      <div className="space-y-2">
-                        {Object.entries(submission.response_data.formData as Record<string, unknown>).map(([key, value]) => (
-                          <div key={key} className="bg-white p-3 rounded border border-gray-200">
-                            <p className="text-xs font-semibold text-gray-700">{key}</p>
-                            <p className="text-sm text-gray-900 mt-1">{String(value)}</p>
-                          </div>
+                      <div className="space-y-3">
+                        {/* Show grader information if available */}
+                        {task.graders?.map((grader, graderIndex) => (
+                          grader.config.structure && grader.config.structure.length > 0 && (
+                            <div key={graderIndex} className="border-2 border-indigo-200 rounded-lg p-3 bg-indigo-50">
+                              {/* Grader Header */}
+                              <div className="flex items-center justify-between mb-3 pb-2 border-b border-indigo-300">
+                                <div>
+                                  <h4 className="font-semibold text-indigo-900 text-sm">
+                                    Verifier: {grader.name}
+                                  </h4>
+                                  <p className="text-xs text-indigo-700 mt-0.5">
+                                    Type: {grader.type.toUpperCase()} | Weight: {grader.weight}
+                                  </p>
+                                </div>
+                                <div className="px-2 py-1 bg-indigo-600 text-white text-xs font-semibold rounded">
+                                  Grader #{graderIndex + 1}
+                                </div>
+                              </div>
+
+                              {/* Field Responses */}
+                              <div className="space-y-2">
+                                {grader.config.structure.map((field, fieldIndex) => {
+                                  const responseData = submission.response_data as Record<string, unknown>
+                                  const formData = responseData.formData as Record<string, unknown>
+                                  const fieldValue = formData[field.name]
+
+                                  return (
+                                    <div key={fieldIndex} className="bg-white p-2.5 rounded border border-indigo-300">
+                                      <div className="flex items-start justify-between mb-1">
+                                        <p className="text-xs font-semibold text-gray-900">
+                                          {field.name}
+                                          <span className="text-gray-500 ml-1">({field.type})</span>
+                                        </p>
+                                        <span className="text-xs text-indigo-700 font-mono bg-indigo-100 px-2 py-0.5 rounded">
+                                          ID: {field.id}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-gray-900 mt-1 font-medium">
+                                        {fieldValue !== undefined ? String(fieldValue) : '(no response)'}
+                                      </p>
+                                      <div className="mt-1.5 flex items-center gap-2 text-xs">
+                                        {field.comparator.config.expected !== undefined && (
+                                          <div className="px-2 py-1 bg-blue-50 border border-blue-200 rounded">
+                                            <span className="text-blue-700">Expected:</span>{' '}
+                                            <span className="text-blue-900 font-mono">{String(field.comparator.config.expected)}</span>
+                                          </div>
+                                        )}
+                                        <div className="px-2 py-1 bg-gray-100 border border-gray-300 rounded">
+                                          <span className="text-gray-700">Weight:</span>{' '}
+                                          <span className="text-gray-900 font-semibold">{field.weight}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
                         ))}
+
+                        {/* Fallback for when grader structure isn't available */}
+                        {(!task.graders || task.graders.every(g => !g.config.structure || g.config.structure.length === 0)) && (
+                          <div className="space-y-2">
+                            {Object.entries(submission.response_data.formData as Record<string, unknown>).map(([key, value]) => (
+                              <div key={key} className="bg-white p-3 rounded border border-gray-200">
+                                <p className="text-xs font-semibold text-gray-700">{key}</p>
+                                <p className="text-sm text-gray-900 mt-1">{String(value)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         {submission.response_data.generatedResponse ? (
                           <details className="mt-3">
                             <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-800">
