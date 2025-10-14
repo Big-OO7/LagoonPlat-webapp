@@ -313,6 +313,15 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   // Debug logging
   console.log('Task graders:', task.graders)
   console.log('Has structured grader:', hasStructuredGrader)
+  if (task.graders && task.graders.length > 0) {
+    task.graders.forEach((grader, index) => {
+      console.log(`Grader ${index}:`, grader)
+      console.log(`  - type:`, grader?.type)
+      console.log(`  - config:`, grader?.config)
+      console.log(`  - config.structure:`, grader?.config?.structure)
+      console.log(`  - is structure array:`, Array.isArray(grader?.config?.structure))
+    })
+  }
 
   // Get example format from graders
   const exampleFormat = task.graders?.[0]?.type === 'xml'
