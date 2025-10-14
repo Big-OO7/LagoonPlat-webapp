@@ -59,6 +59,8 @@ async function evaluateWithGrader(
       return evaluateTextGrader(responseText, grader)
     case 'number':
       return evaluateNumberGrader(responseText, grader)
+    case 'unit_test':
+      return evaluateUnitTestGrader(responseText, grader)
     default:
       throw new Error(`Unknown grader type: ${grader.type}`)
   }
@@ -177,6 +179,49 @@ function evaluateNumberGrader(responseText: string, grader: GraderConfig): Grade
       expected,
       actual: value,
     },
+  }
+}
+
+/**
+ * Evaluates unit test grader (uses test_cases instead of structure)
+ */
+function evaluateUnitTestGrader(responseText: string, grader: GraderConfig): GraderResult {
+  const testCases = grader.config.test_cases || []
+  const maxScore = grader.weight
+  const details: Record<string, unknown> = {}
+
+  // Parse XML-like structure from response
+  const parsedData = parseXmlLikeResponse(responseText)
+
+  // Calculate weight per test case
+  const weightPerTestCase = testCases.length > 0 ? maxScore / testCases.length : 0
+  let score = 0
+
+  for (const testCase of testCases) {
+    const value = parsedData[testCase.id]
+    const expectedValue = testCase.expected_value
+
+    // Simple equality check (convert both to strings for comparison)
+    const fieldPassed = String(value).trim() === String(expectedValue).trim()
+
+    details[testCase.id] = {
+      expected: expectedValue,
+      actual: value,
+      passed: fieldPassed,
+      weight: weightPerTestCase,
+    }
+
+    if (fieldPassed) {
+      score += weightPerTestCase
+    }
+  }
+
+  return {
+    graderName: grader.name,
+    score,
+    maxScore,
+    passed: score === maxScore,
+    details,
   }
 }
 
