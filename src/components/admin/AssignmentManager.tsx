@@ -14,19 +14,6 @@ interface Assignment {
   has_submission: boolean
 }
 
-interface AssignmentData {
-  id: string
-  task_id: string
-  labeler_id: string
-  assigned_at: string
-  tasks: {
-    title: string
-    status: string
-  }[]
-  user_profiles: {
-    email: string
-  }[]
-}
 
 export default function AssignmentManager() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
@@ -53,20 +40,38 @@ export default function AssignmentManager() {
   const loadAssignments = async () => {
     setLoading(true)
     try {
-      // Get all assignments with task and user details
+      // Get all assignments
       const { data: assignmentsData, error: assignmentsError } = await supabase
         .from('task_assignments')
-        .select(`
-          id,
-          task_id,
-          labeler_id,
-          assigned_at,
-          tasks!inner(title, status),
-          user_profiles!task_assignments_labeler_id_fkey(email)
-        `)
+        .select('id, task_id, labeler_id, assigned_at')
         .order('assigned_at', { ascending: false })
 
       if (assignmentsError) throw assignmentsError
+      if (!assignmentsData) {
+        setAssignments([])
+        setLoading(false)
+        return
+      }
+
+      // Get unique task IDs and labeler IDs
+      const taskIds = [...new Set(assignmentsData.map(a => a.task_id))]
+      const labelerIds = [...new Set(assignmentsData.map(a => a.labeler_id))]
+
+      // Get tasks
+      const { data: tasksData, error: tasksError } = await supabase
+        .from('tasks')
+        .select('id, title, status')
+        .in('id', taskIds)
+
+      if (tasksError) throw tasksError
+
+      // Get user profiles
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('id, email')
+        .in('id', labelerIds)
+
+      if (profilesError) throw profilesError
 
       // Get all submissions to check which assignments have submissions
       const { data: submissionsData, error: submissionsError } = await supabase
@@ -76,23 +81,28 @@ export default function AssignmentManager() {
       if (submissionsError) throw submissionsError
 
       // Map the data
-      const mappedAssignments: Assignment[] = (assignmentsData || []).map((assignment: AssignmentData) => ({
-        id: assignment.id,
-        task_id: assignment.task_id,
-        labeler_id: assignment.labeler_id,
-        assigned_at: assignment.assigned_at,
-        task_title: assignment.tasks?.[0]?.title || 'Unknown Task',
-        task_status: assignment.tasks?.[0]?.status || 'unknown',
-        labeler_email: assignment.user_profiles?.[0]?.email || 'Unknown User',
-        has_submission: submissionsData?.some(
-          s => s.task_id === assignment.task_id && s.labeler_id === assignment.labeler_id
-        ) || false
-      }))
+      const mappedAssignments: Assignment[] = assignmentsData.map(assignment => {
+        const task = tasksData?.find(t => t.id === assignment.task_id)
+        const profile = profilesData?.find(p => p.id === assignment.labeler_id)
+
+        return {
+          id: assignment.id,
+          task_id: assignment.task_id,
+          labeler_id: assignment.labeler_id,
+          assigned_at: assignment.assigned_at,
+          task_title: task?.title || 'Unknown Task',
+          task_status: task?.status || 'unknown',
+          labeler_email: profile?.email || 'Unknown User',
+          has_submission: submissionsData?.some(
+            s => s.task_id === assignment.task_id && s.labeler_id === assignment.labeler_id
+          ) || false
+        }
+      })
 
       setAssignments(mappedAssignments)
     } catch (error) {
       console.error('Error loading assignments:', error)
-      alert('Failed to load assignments')
+      alert('Failed to load assignments. Please check the console for details.')
     } finally {
       setLoading(false)
     }
