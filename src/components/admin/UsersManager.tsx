@@ -8,6 +8,7 @@ interface UserProfile {
   email: string
   role: 'admin' | 'labeler'
   created_at: string
+  tasks_completed?: number
 }
 
 export default function UsersManager() {
@@ -22,7 +23,8 @@ export default function UsersManager() {
     setLoading(true)
     setError(null)
 
-    const { data, error: fetchError } = await supabase
+    // Fetch users
+    const { data: usersData, error: fetchError } = await supabase
       .from('user_profiles')
       .select('*')
       .order('created_at', { ascending: false })
@@ -30,10 +32,35 @@ export default function UsersManager() {
     if (fetchError) {
       setError(`Failed to load users: ${fetchError.message}`)
       setUsers([])
-    } else if (data) {
-      setUsers(data)
+      setLoading(false)
+      return
     }
 
+    // Fetch submission counts for each user (count submitted and reviewed submissions)
+    const { data: submissionCounts, error: countError } = await supabase
+      .from('submissions')
+      .select('labeler_id, status')
+      .in('status', ['submitted', 'reviewed', 'completed'])
+
+    if (countError) {
+      console.error('Failed to load submission counts:', countError)
+    }
+
+    // Count submissions per labeler
+    const countsMap: Record<string, number> = {}
+    if (submissionCounts) {
+      submissionCounts.forEach(submission => {
+        countsMap[submission.labeler_id] = (countsMap[submission.labeler_id] || 0) + 1
+      })
+    }
+
+    // Merge counts with user data
+    const usersWithCounts = usersData?.map(user => ({
+      ...user,
+      tasks_completed: countsMap[user.id] || 0
+    })) || []
+
+    setUsers(usersWithCounts)
     setLoading(false)
   }, [supabase])
 
@@ -187,6 +214,9 @@ export default function UsersManager() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tasks Completed
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Joined
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -209,6 +239,11 @@ export default function UsersManager() {
                     }`}>
                       {user.role.toUpperCase()}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {user.role === 'labeler' ? (user.tasks_completed || 0) : '-'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(user.created_at).toLocaleDateString()}
