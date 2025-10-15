@@ -63,6 +63,10 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         if ('formData' in submissionData.response_data && typeof submissionData.response_data.formData === 'object') {
           setFormResponses(submissionData.response_data.formData as Record<string, string>)
         }
+        // Load edited prompt if previously saved
+        if ('editedPrompt' in submissionData.response_data && submissionData.response_data.editedPrompt) {
+          setEditedPrompt(String(submissionData.response_data.editedPrompt))
+        }
       }
       // Load labeler comment and flag
       setLabelerComment(submissionData.labeler_comment || '')
@@ -154,8 +158,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       }
 
       const responseData = hasStructuredGrader
-        ? { formData: formResponses, generatedResponse: responseToGrade }
-        : { text: responseText }
+        ? { formData: formResponses, generatedResponse: responseToGrade, editedPrompt: editedPrompt }
+        : { text: responseText, editedPrompt: editedPrompt }
 
       console.log('Submitting response data:', responseData)
       console.log('Grader results:', graderResults)
@@ -248,8 +252,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       })
 
       const responseData = hasStructuredGrader
-        ? { formData: formResponses }
-        : { text: responseText }
+        ? { formData: formResponses, editedPrompt: editedPrompt }
+        : { text: responseText, editedPrompt: editedPrompt }
 
       if (submission) {
         // Update existing submission
