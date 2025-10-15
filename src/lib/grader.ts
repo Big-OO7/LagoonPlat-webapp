@@ -59,6 +59,7 @@ async function evaluateWithGrader(
       return evaluateTextGrader(responseText, grader)
     case 'number':
       return evaluateNumberGrader(responseText, grader)
+    case 'unit':
     case 'unit_test':
       return evaluateUnitTestGrader(responseText, grader)
     default:

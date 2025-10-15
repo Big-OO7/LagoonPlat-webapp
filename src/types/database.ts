@@ -1,7 +1,7 @@
 export type TaskStatus = 'draft' | 'assigned' | 'in_progress' | 'submitted' | 'reviewed' | 'completed' | 'revision_requested'
 
 // New grader-based types
-export type GraderType = 'xml' | 'json' | 'text' | 'number'
+export type GraderType = 'xml' | 'json' | 'text' | 'number' | 'unit' | 'unit_test'
 export type ComparatorType = 'equals' | 'contains' | 'range' | 'regex'
 
 export interface ComparatorConfig {
@@ -24,7 +24,7 @@ export interface GraderStructureField {
 }
 
 export interface GraderConfig {
-  type: GraderType | 'unit_test'
+  type: GraderType
   name: string
   config: {
     structure?: GraderStructureField[]

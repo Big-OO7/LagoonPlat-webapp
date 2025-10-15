@@ -50,7 +50,6 @@ export default function FillInTheBlankForm({
               {/* For structure-based graders (xml/json) */}
               {hasStructure && grader.config.structure!.map((field, fieldIndex) => {
                 const fieldValue = formResponses[field.name] || ''
-                const isNumber = field.type === 'int' || field.type === 'float'
 
                 return (
                   <div key={fieldIndex} className="flex items-start gap-2">
@@ -62,11 +61,10 @@ export default function FillInTheBlankForm({
                     {/* Input field */}
                     <div className="flex-1">
                       <input
-                        type={isNumber ? 'number' : 'text'}
+                        type="text"
                         value={fieldValue}
                         onChange={(e) => handleFieldChange(field.name, e.target.value)}
                         disabled={disabled}
-                        step={field.type === 'float' ? 'any' : undefined}
                         placeholder={`Enter ${field.type}...`}
                         className="w-full px-3 py-2 border-b-2 border-green-400 bg-yellow-50 focus:bg-white focus:border-green-600 rounded text-gray-900 font-sans focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
                       />
