@@ -10,6 +10,7 @@ import UsersManager from './admin/UsersManager'
 import DashboardOverview from './admin/DashboardOverview'
 import BatchAssignment from './admin/BatchAssignment'
 import AssignmentManager from './admin/AssignmentManager'
+import ExportTasks from './admin/ExportTasks'
 
 interface AdminDashboardProps {
   user: User
@@ -20,7 +21,7 @@ interface AdminDashboardProps {
   }
 }
 
-type TabType = 'overview' | 'tasks' | 'submissions' | 'users' | 'batch_assign' | 'manage_assignments'
+type TabType = 'overview' | 'tasks' | 'submissions' | 'users' | 'batch_assign' | 'manage_assignments' | 'export'
 
 export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>('overview')
@@ -40,6 +41,7 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
     { id: 'batch_assign' as TabType, label: 'Batch Assign' },
     { id: 'manage_assignments' as TabType, label: 'Manage Assignments' },
     { id: 'users' as TabType, label: 'Users' },
+    { id: 'export' as TabType, label: 'Export' },
   ]
 
   return (
@@ -104,6 +106,7 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
             {activeTab === 'batch_assign' && <BatchAssignment />}
             {activeTab === 'manage_assignments' && <AssignmentManager />}
             {activeTab === 'users' && <UsersManager />}
+            {activeTab === 'export' && <ExportTasks />}
           </div>
         </div>
       </div>
