@@ -371,9 +371,9 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
     : 'Your answer here'
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg max-w-5xl w-full my-8">
-        <div className="p-6 border-b border-gray-200">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-5xl w-full max-h-[95vh] flex flex-col my-auto">
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex justify-between items-start">
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-gray-900">{task.title}</h2>
@@ -436,7 +436,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           </div>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+        <div className="p-6 space-y-6 overflow-y-auto flex-grow">
           {/* Prompt Section - Editable */}
           {task.prompt && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -551,7 +551,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         </div>
 
         {(!isReadOnly && !canUnsubmit) || needsRevision ? (
-          <div className={`p-6 border-t border-gray-200 flex justify-between ${needsRevision ? 'bg-orange-50' : ''}`}>
+          <div className={`p-6 border-t border-gray-200 flex justify-between flex-shrink-0 ${needsRevision ? 'bg-orange-50' : ''}`}>
             <button
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
@@ -580,7 +580,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         ) : null}
 
         {canUnsubmit && (
-          <div className="p-6 border-t border-gray-200 flex justify-between bg-gray-50">
+          <div className="p-6 border-t border-gray-200 flex justify-between flex-shrink-0 bg-gray-50">
             <button
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
@@ -598,7 +598,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         )}
 
         {isReadOnly && (
-          <div className="p-6 border-t border-gray-200 bg-gray-50">
+          <div className="p-6 border-t border-gray-200 flex-shrink-0 bg-gray-50">
             <p className="text-center text-gray-600">
               This task has been reviewed and cannot be edited.
             </p>
