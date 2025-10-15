@@ -6,6 +6,7 @@ import type { Task, GraderConfig } from '@/types/database'
 
 interface TaskWithSelection extends Task {
   selected: boolean
+  submissionData?: any // Store the reviewed submission data
 }
 
 export default function ExportTasks() {
@@ -23,10 +24,10 @@ export default function ExportTasks() {
   const loadCompletedTasks = async () => {
     setLoading(true)
 
-    // First, get all submissions that have been reviewed or completed
+    // Get all submissions that have been reviewed or completed with full data
     const { data: reviewedSubmissions, error: submissionsError } = await supabase
       .from('submissions')
-      .select('task_id')
+      .select('*')
       .in('status', ['reviewed', 'completed'])
 
     if (submissionsError) {
@@ -35,8 +36,15 @@ export default function ExportTasks() {
       return
     }
 
-    // Get unique task IDs from reviewed submissions
-    const taskIds = [...new Set(reviewedSubmissions?.map(sub => sub.task_id) || [])]
+    // Create a map of task_id to submission data (use the first reviewed submission per task)
+    const taskSubmissionMap = new Map()
+    reviewedSubmissions?.forEach(sub => {
+      if (!taskSubmissionMap.has(sub.task_id)) {
+        taskSubmissionMap.set(sub.task_id, sub)
+      }
+    })
+
+    const taskIds = Array.from(taskSubmissionMap.keys())
 
     if (taskIds.length === 0) {
       setTasks([])
@@ -57,12 +65,16 @@ export default function ExportTasks() {
       return
     }
 
-    // Filter tasks that have graders
+    // Filter tasks that have graders and attach submission data
     const tasksWithGraders = tasksData?.filter(task =>
       task.graders && Array.isArray(task.graders) && task.graders.length > 0
-    ) || []
+    ).map(task => ({
+      ...task,
+      selected: false,
+      submissionData: taskSubmissionMap.get(task.id)
+    })) || []
 
-    setTasks(tasksWithGraders.map(task => ({ ...task, selected: false })))
+    setTasks(tasksWithGraders)
     setLoading(false)
   }
 
@@ -76,33 +88,39 @@ export default function ExportTasks() {
     ))
   }
 
-  const clearGraderExpectedValues = (graders: GraderConfig[]): GraderConfig[] => {
-    return graders.map(grader => {
-      const clearedGrader = { ...grader }
+  const populateGraderExpectedValues = (graders: GraderConfig[], submissionData: any): GraderConfig[] => {
+    if (!submissionData || !submissionData.response_data) {
+      return graders
+    }
 
-      // Clear expected values in structure fields
-      if (clearedGrader.config.structure) {
-        clearedGrader.config.structure = clearedGrader.config.structure.map(field => ({
+    const responseData = submissionData.response_data
+
+    return graders.map(grader => {
+      const populatedGrader = { ...grader }
+
+      // Populate expected values in structure fields from formData
+      if (populatedGrader.config.structure && responseData.formData) {
+        populatedGrader.config.structure = populatedGrader.config.structure.map(field => ({
           ...field,
           comparator: {
             ...field.comparator,
             config: {
               ...field.comparator.config,
-              expected: undefined // Clear the expected value
+              expected: responseData.formData[field.id] || undefined
             }
           }
         }))
       }
 
-      // Clear expected values in test_cases
-      if (clearedGrader.config.test_cases) {
-        clearedGrader.config.test_cases = clearedGrader.config.test_cases.map(testCase => ({
+      // Populate expected values in test_cases from formData
+      if (populatedGrader.config.test_cases && responseData.formData) {
+        populatedGrader.config.test_cases = populatedGrader.config.test_cases.map(testCase => ({
           ...testCase,
-          expected_value: undefined // Clear the expected value
+          expected_value: responseData.formData[testCase.id] || undefined
         }))
       }
 
-      return clearedGrader
+      return populatedGrader
     })
   }
 
@@ -119,7 +137,7 @@ export default function ExportTasks() {
         name: task.title,
         description: task.description || '',
         prompt: task.prompt || '',
-        graders: task.graders ? clearGraderExpectedValues(task.graders) : []
+        graders: task.graders ? populateGraderExpectedValues(task.graders, task.submissionData) : []
       }))
     }
 
@@ -159,7 +177,7 @@ export default function ExportTasks() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Export Tasks</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Export reviewed tasks as JSON templates with blank grader values
+            Export reviewed tasks as JSON templates with labeler values as expected answers
           </p>
         </div>
       </div>
@@ -265,7 +283,7 @@ export default function ExportTasks() {
               <div className="flex-1">
                 <p className="text-sm font-medium text-blue-900">Export Preview</p>
                 <p className="text-xs text-blue-800 mt-1">
-                  Review and edit the JSON below. All grader expected values have been cleared for template use.
+                  Review and edit the JSON below. Grader expected values have been populated from the reviewed labeler submission.
                 </p>
               </div>
             </div>
