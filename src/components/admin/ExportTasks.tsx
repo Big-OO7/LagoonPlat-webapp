@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import type { Task, GraderConfig } from '@/types/database'
+import type { Task, GraderConfig, Submission } from '@/types/database'
 
 interface TaskWithSelection extends Task {
   selected: boolean
-  submissionData?: any // Store the reviewed submission data
+  submissionData?: Submission // Store the reviewed submission data
 }
 
 export default function ExportTasks() {
@@ -88,35 +88,43 @@ export default function ExportTasks() {
     ))
   }
 
-  const populateGraderExpectedValues = (graders: GraderConfig[], submissionData: any): GraderConfig[] => {
+  const populateGraderExpectedValues = (graders: GraderConfig[], submissionData?: Submission): GraderConfig[] => {
     if (!submissionData || !submissionData.response_data) {
       return graders
     }
 
     const responseData = submissionData.response_data
+    const formData = responseData.formData as Record<string, unknown> | undefined
 
     return graders.map(grader => {
       const populatedGrader = { ...grader }
 
       // Populate expected values in structure fields from formData
-      if (populatedGrader.config.structure && responseData.formData) {
-        populatedGrader.config.structure = populatedGrader.config.structure.map(field => ({
-          ...field,
-          comparator: {
-            ...field.comparator,
-            config: {
-              ...field.comparator.config,
-              expected: responseData.formData[field.id] || undefined
+      if (populatedGrader.config.structure && formData) {
+        populatedGrader.config.structure = populatedGrader.config.structure.map(field => {
+          const value = formData[field.id]
+          const expected = (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+            ? value
+            : undefined
+
+          return {
+            ...field,
+            comparator: {
+              ...field.comparator,
+              config: {
+                ...field.comparator.config,
+                expected
+              }
             }
           }
-        }))
+        })
       }
 
       // Populate expected values in test_cases from formData
-      if (populatedGrader.config.test_cases && responseData.formData) {
+      if (populatedGrader.config.test_cases && formData) {
         populatedGrader.config.test_cases = populatedGrader.config.test_cases.map(testCase => ({
           ...testCase,
-          expected_value: responseData.formData[testCase.id] || undefined
+          expected_value: formData[testCase.id]
         }))
       }
 
