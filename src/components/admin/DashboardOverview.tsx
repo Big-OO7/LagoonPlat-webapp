@@ -21,7 +21,7 @@ interface DashboardOverviewProps {
     email: string
     role: string
   }
-  onNavigate: (tab: 'tasks' | 'submissions' | 'users') => void
+  onNavigate: (tab: 'tasks' | 'submissions' | 'users' | 'batch_assign' | 'manage_assignments' | 'export') => void
 }
 
 export default function DashboardOverview({ profile, onNavigate }: DashboardOverviewProps) {

@@ -67,7 +67,7 @@ export default function ExportTasks() {
             ...field.comparator,
             config: {
               ...field.comparator.config,
-              expected: null // Clear the expected value
+              expected: undefined // Clear the expected value
             }
           }
         }))
@@ -77,7 +77,7 @@ export default function ExportTasks() {
       if (clearedGrader.config.test_cases) {
         clearedGrader.config.test_cases = clearedGrader.config.test_cases.map(testCase => ({
           ...testCase,
-          expected_value: null // Clear the expected value
+          expected_value: undefined // Clear the expected value
         }))
       }
 
