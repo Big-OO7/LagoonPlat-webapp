@@ -18,7 +18,7 @@ export default function ExportTasks() {
 
   useEffect(() => {
     loadCompletedTasks()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadCompletedTasks = async () => {
     setLoading(true)
