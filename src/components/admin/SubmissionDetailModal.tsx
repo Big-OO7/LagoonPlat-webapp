@@ -95,22 +95,30 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
     setSubmitting(true)
 
     try {
+      // Get current user ID
+      const { data: { user } } = await supabase.auth.getUser()
+
       const { error } = await supabase
         .from('submissions')
         .update({
           status: 'reviewed',
           feedback: feedback,
+          reviewed_by: user?.id || null,
           reviewed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', submission.id)
 
-      if (error) throw error
+      if (error) {
+        console.error('Database error:', error)
+        throw error
+      }
 
+      alert('Submission approved and marked as reviewed!')
       onUpdate()
     } catch (error) {
       console.error('Error marking as reviewed:', error)
-      alert('Failed to mark as reviewed. Please try again.')
+      alert(`Failed to mark as reviewed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setSubmitting(false)
     }
@@ -132,23 +140,30 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
     setSubmitting(true)
 
     try {
+      // Get current user ID
+      const { data: { user } } = await supabase.auth.getUser()
+
       const { error } = await supabase
         .from('submissions')
         .update({
           status: 'revision_requested',
           feedback: feedback,
+          reviewed_by: user?.id || null,
           reviewed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', submission.id)
 
-      if (error) throw error
+      if (error) {
+        console.error('Database error:', error)
+        throw error
+      }
 
       alert('Revision request sent successfully! The labeler can now edit and resubmit.')
       onUpdate()
     } catch (error) {
       console.error('Error requesting revision:', error)
-      alert('Failed to request revision. Please try again.')
+      alert(`Failed to request revision: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setSubmitting(false)
     }
