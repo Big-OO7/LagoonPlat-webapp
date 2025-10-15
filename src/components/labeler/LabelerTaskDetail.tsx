@@ -19,6 +19,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const [responseText, setResponseText] = useState('')
   const [formResponses, setFormResponses] = useState<Record<string, string>>({})
   const [editedPrompt, setEditedPrompt] = useState('')
+  const [labelerComment, setLabelerComment] = useState('')
+  const [flaggedUnsolvable, setFlaggedUnsolvable] = useState(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const supabase = createClient()
@@ -62,6 +64,9 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           setFormResponses(submissionData.response_data.formData as Record<string, string>)
         }
       }
+      // Load labeler comment and flag
+      setLabelerComment(submissionData.labeler_comment || '')
+      setFlaggedUnsolvable(submissionData.flagged_unsolvable || false)
     }
 
     setLoading(false)
@@ -167,6 +172,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           status: 'submitted' as const,
           submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          labeler_comment: labelerComment || null,
+          flagged_unsolvable: flaggedUnsolvable,
         }
         console.log('Update data:', updateData)
 
@@ -192,6 +199,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           score: score,
           status: 'submitted' as const,
           submitted_at: new Date().toISOString(),
+          labeler_comment: labelerComment || null,
+          flagged_unsolvable: flaggedUnsolvable,
         }
         console.log('Insert data:', insertData)
 
@@ -250,6 +259,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
             response_data: responseData,
             rubric_data: {}, // Legacy field
             updated_at: new Date().toISOString(),
+            labeler_comment: labelerComment || null,
+            flagged_unsolvable: flaggedUnsolvable,
           })
           .eq('id', submission.id)
 
@@ -264,6 +275,8 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
             response_data: responseData,
             rubric_data: {}, // Legacy field
             status: 'in_progress',
+            labeler_comment: labelerComment || null,
+            flagged_unsolvable: flaggedUnsolvable,
           })
 
         if (error) throw error
@@ -486,6 +499,53 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
               <p className="text-xs text-blue-900">
                 ✓ Your response will be automatically graded when you submit.
               </p>
+            </div>
+          )}
+
+          {/* Labeler Comments and Flags Section */}
+          {!isReadOnly && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-orange-900">Report an Issue (Optional)</h3>
+              <p className="text-xs text-orange-800">
+                If you encounter problems with this task, you can leave a comment or flag it as unsolvable.
+              </p>
+
+              {/* Flag checkbox */}
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="flagUnsolvable"
+                  checked={flaggedUnsolvable}
+                  onChange={(e) => setFlaggedUnsolvable(e.target.checked)}
+                  disabled={canUnsubmit}
+                  className="mt-1 w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                />
+                <label htmlFor="flagUnsolvable" className="text-sm text-orange-900 cursor-pointer">
+                  <span className="font-medium">Flag as unsolvable or problematic</span>
+                  <p className="text-xs text-orange-700 mt-1">
+                    Check this box if the task has errors, is unclear, or cannot be completed as stated.
+                  </p>
+                </label>
+              </div>
+
+              {/* Comment textarea */}
+              <div>
+                <label htmlFor="labelerComment" className="block text-sm font-medium text-orange-900 mb-1">
+                  Your Comments
+                </label>
+                <textarea
+                  id="labelerComment"
+                  value={labelerComment}
+                  onChange={(e) => setLabelerComment(e.target.value)}
+                  disabled={canUnsubmit}
+                  rows={3}
+                  placeholder="Describe any issues, ambiguities, or problems with this task..."
+                  className="w-full px-3 py-2 border border-orange-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-orange-100 disabled:cursor-not-allowed"
+                />
+                <p className="text-xs text-orange-700 mt-1">
+                  Your comments will be visible to administrators and help improve task quality.
+                </p>
+              </div>
             </div>
           )}
         </div>

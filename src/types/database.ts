@@ -120,6 +120,8 @@ export interface Submission {
   reviewed_at: string | null
   submitted_at: string
   updated_at: string
+  labeler_comment: string | null // Labeler's comments about task issues
+  flagged_unsolvable: boolean // Flag for unsolvable/problematic tasks
 }
 
 export interface TaskWithDetails extends Task {
