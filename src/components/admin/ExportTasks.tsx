@@ -110,8 +110,15 @@ export default function ExportTasks() {
         populatedGrader.config.structure = populatedGrader.config.structure.map(field => {
           console.log(`Looking for field.id="${field.id}" in formData`)
           console.log('Available formData keys:', Object.keys(formData))
+          console.log('formData contents:', formData)
+          console.log('field.name:', field.name)
 
-          const value = formData[field.id]
+          // Try both field.id and field.name as keys
+          let value = formData[field.id]
+          if (value === undefined) {
+            console.log(`Trying field.name="${field.name}" instead`)
+            value = formData[field.name]
+          }
           console.log(`Value for "${field.id}":`, value, 'Type:', typeof value)
 
           const expected = (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
@@ -159,6 +166,19 @@ export default function ExportTasks() {
       alert('Please select at least one task to export')
       return
     }
+
+    console.log('=== EXPORT GENERATION START ===')
+    console.log('Selected tasks count:', selectedTasks.length)
+
+    selectedTasks.forEach((task, index) => {
+      console.log(`\n--- Task ${index + 1}: ${task.title} ---`)
+      console.log('Has submissionData?', !!task.submissionData)
+      console.log('Submission data:', task.submissionData)
+      if (task.submissionData) {
+        console.log('Response data:', task.submissionData.response_data)
+      }
+      console.log('Task graders:', task.graders)
+    })
 
     const exportData = {
       tasks: selectedTasks.map(task => ({
