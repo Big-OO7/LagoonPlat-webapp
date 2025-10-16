@@ -101,7 +101,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         // For structure-based graders
         if (grader.config.structure) {
           for (const field of grader.config.structure) {
-            if (!formResponses[field.name] || formResponses[field.name].trim() === '') {
+            if (!formResponses[field.id] || formResponses[field.id].trim() === '') {
               alert(`Please fill in the "${field.name}" field before submitting.`)
               return
             }
@@ -544,7 +544,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
                   disabled={canUnsubmit}
                   rows={3}
                   placeholder="Describe any issues, ambiguities, or problems with this task..."
-                  className="w-full px-3 py-2 border border-orange-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-orange-100 disabled:cursor-not-allowed"
+                  className="w-full px-3 py-2 border border-orange-300 rounded text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-orange-100 disabled:text-orange-900 disabled:cursor-not-allowed placeholder:text-gray-400"
                 />
                 <p className="text-xs text-orange-700 mt-1">
                   Your comments will be visible to administrators and help improve task quality.
