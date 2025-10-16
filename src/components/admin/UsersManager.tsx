@@ -8,6 +8,7 @@ interface UserProfile {
   email: string
   role: 'admin' | 'labeler'
   created_at: string
+  tasks_assigned?: number
   tasks_completed?: number
 }
 
@@ -47,17 +48,35 @@ export default function UsersManager() {
     }
 
     // Count submissions per labeler
-    const countsMap: Record<string, number> = {}
+    const completedCountsMap: Record<string, number> = {}
     if (submissionCounts) {
       submissionCounts.forEach(submission => {
-        countsMap[submission.labeler_id] = (countsMap[submission.labeler_id] || 0) + 1
+        completedCountsMap[submission.labeler_id] = (completedCountsMap[submission.labeler_id] || 0) + 1
+      })
+    }
+
+    // Fetch task assignment counts for each labeler
+    const { data: assignmentCounts, error: assignmentError } = await supabase
+      .from('task_assignments')
+      .select('labeler_id')
+
+    if (assignmentError) {
+      console.error('Failed to load assignment counts:', assignmentError)
+    }
+
+    // Count assignments per labeler
+    const assignedCountsMap: Record<string, number> = {}
+    if (assignmentCounts) {
+      assignmentCounts.forEach(assignment => {
+        assignedCountsMap[assignment.labeler_id] = (assignedCountsMap[assignment.labeler_id] || 0) + 1
       })
     }
 
     // Merge counts with user data
     const usersWithCounts = usersData?.map(user => ({
       ...user,
-      tasks_completed: countsMap[user.id] || 0
+      tasks_assigned: assignedCountsMap[user.id] || 0,
+      tasks_completed: completedCountsMap[user.id] || 0
     })) || []
 
     setUsers(usersWithCounts)
@@ -214,6 +233,9 @@ export default function UsersManager() {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tasks Assigned
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Tasks Completed
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -239,6 +261,11 @@ export default function UsersManager() {
                     }`}>
                       {user.role.toUpperCase()}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-semibold text-indigo-900">
+                      {user.role === 'labeler' ? (user.tasks_assigned || 0) : '-'}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-semibold text-gray-900">
