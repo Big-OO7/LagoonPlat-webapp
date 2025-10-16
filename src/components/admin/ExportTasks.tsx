@@ -90,22 +90,35 @@ export default function ExportTasks() {
 
   const populateGraderExpectedValues = (graders: GraderConfig[], submissionData?: Submission): GraderConfig[] => {
     if (!submissionData || !submissionData.response_data) {
+      console.warn('No submission data or response_data found')
       return graders
     }
 
     const responseData = submissionData.response_data
+    console.log('Response data:', responseData)
+
     const formData = responseData.formData as Record<string, unknown> | undefined
+    console.log('Form data:', formData)
 
     return graders.map(grader => {
       const populatedGrader = { ...grader }
+      console.log('Processing grader:', grader.name, 'Type:', grader.type)
 
       // Populate expected values in structure fields from formData
       if (populatedGrader.config.structure && formData) {
+        console.log('Structure fields found:', populatedGrader.config.structure.length)
         populatedGrader.config.structure = populatedGrader.config.structure.map(field => {
+          console.log(`Looking for field.id="${field.id}" in formData`)
+          console.log('Available formData keys:', Object.keys(formData))
+
           const value = formData[field.id]
+          console.log(`Value for "${field.id}":`, value, 'Type:', typeof value)
+
           const expected = (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
             ? value
             : undefined
+
+          console.log(`Expected value set to:`, expected)
 
           return {
             ...field,
@@ -122,10 +135,17 @@ export default function ExportTasks() {
 
       // Populate expected values in test_cases from formData
       if (populatedGrader.config.test_cases && formData) {
-        populatedGrader.config.test_cases = populatedGrader.config.test_cases.map(testCase => ({
-          ...testCase,
-          expected_value: formData[testCase.id]
-        }))
+        console.log('Test cases found:', populatedGrader.config.test_cases.length)
+        populatedGrader.config.test_cases = populatedGrader.config.test_cases.map(testCase => {
+          console.log(`Looking for testCase.id="${testCase.id}" in formData`)
+          const value = formData[testCase.id]
+          console.log(`Value for "${testCase.id}":`, value)
+
+          return {
+            ...testCase,
+            expected_value: formData[testCase.id]
+          }
+        })
       }
 
       return populatedGrader
