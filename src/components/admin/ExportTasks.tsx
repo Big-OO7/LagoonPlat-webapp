@@ -15,6 +15,7 @@ export default function ExportTasks() {
   const [exportJson, setExportJson] = useState('')
   const [showEditor, setShowEditor] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [filter, setFilter] = useState<'all' | 'with_comments' | 'without_comments'>('all')
   const supabase = createClient()
 
   useEffect(() => {
@@ -36,10 +37,13 @@ export default function ExportTasks() {
       return
     }
 
-    // Create a map of task_id to submission data (use the first reviewed submission per task)
+    // Create a map of task_id to submission data (use the latest reviewed submission per task)
     const taskSubmissionMap = new Map()
     reviewedSubmissions?.forEach(sub => {
-      if (!taskSubmissionMap.has(sub.task_id)) {
+      const existingSub = taskSubmissionMap.get(sub.task_id)
+      // Keep the submission with the most recent reviewed_at or updated_at timestamp
+      if (!existingSub ||
+          new Date(sub.reviewed_at || sub.updated_at) > new Date(existingSub.reviewed_at || existingSub.updated_at)) {
         taskSubmissionMap.set(sub.task_id, sub)
       }
     })
@@ -76,10 +80,6 @@ export default function ExportTasks() {
 
     setTasks(tasksWithGraders)
     setLoading(false)
-  }
-
-  const handleSelectAll = (checked: boolean) => {
-    setTasks(tasks.map(task => ({ ...task, selected: checked })))
   }
 
   const handleSelectTask = (taskId: string, checked: boolean) => {
@@ -219,6 +219,21 @@ export default function ExportTasks() {
 
   const selectedCount = tasks.filter(task => task.selected).length
 
+  // Filter tasks based on feedback comments
+  const filteredTasks = tasks.filter(task => {
+    if (filter === 'all') return true
+    const hasFeedback = task.submissionData?.feedback && task.submissionData.feedback.trim().length > 0
+    if (filter === 'with_comments') return hasFeedback
+    if (filter === 'without_comments') return !hasFeedback
+    return true
+  })
+
+  const stats = {
+    all: tasks.length,
+    withComments: tasks.filter(t => t.submissionData?.feedback && t.submissionData.feedback.trim().length > 0).length,
+    withoutComments: tasks.filter(t => !t.submissionData?.feedback || t.submissionData.feedback.trim().length === 0).length,
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -232,20 +247,55 @@ export default function ExportTasks() {
 
       {!showEditor ? (
         <>
+          {/* Filter Tabs */}
+          <div className="mb-4 flex gap-2">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-4 py-2 rounded ${
+                filter === 'all' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              All ({stats.all})
+            </button>
+            <button
+              onClick={() => setFilter('without_comments')}
+              className={`px-4 py-2 rounded ${
+                filter === 'without_comments' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              No Comments ({stats.withoutComments})
+            </button>
+            <button
+              onClick={() => setFilter('with_comments')}
+              className={`px-4 py-2 rounded ${
+                filter === 'with_comments' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+              }`}
+            >
+              With Comments ({stats.withComments})
+            </button>
+          </div>
+
           {/* Selection Controls */}
           <div className="mb-4 flex items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200">
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={tasks.length > 0 && tasks.every(task => task.selected)}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  checked={filteredTasks.length > 0 && filteredTasks.every(task => task.selected)}
+                  onChange={(e) => {
+                    // Select/deselect only filtered tasks
+                    setTasks(tasks.map(task =>
+                      filteredTasks.some(ft => ft.id === task.id)
+                        ? { ...task, selected: e.target.checked }
+                        : task
+                    ))
+                  }}
                   className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                 />
-                <span className="text-sm font-medium text-gray-700">Select All</span>
+                <span className="text-sm font-medium text-gray-700">Select All Visible</span>
               </label>
               <span className="text-sm text-gray-600">
-                {selectedCount} of {tasks.length} selected
+                {selectedCount} of {filteredTasks.length} selected
               </span>
             </div>
             <button
@@ -263,19 +313,23 @@ export default function ExportTasks() {
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
               <p className="mt-2 text-gray-600">Loading tasks...</p>
             </div>
-          ) : tasks.length === 0 ? (
+          ) : filteredTasks.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <p className="mt-2 text-gray-600">No reviewed tasks with graders found</p>
+              <p className="mt-2 text-gray-600">
+                {filter === 'all' ? 'No reviewed tasks with graders found' : `No tasks ${filter === 'with_comments' ? 'with' : 'without'} comments`}
+              </p>
               <p className="text-sm text-gray-500 mt-1">
-                Tasks must have graders configured and at least one reviewed or completed submission
+                {filter === 'all'
+                  ? 'Tasks must have graders configured and at least one reviewed or completed submission'
+                  : 'Try selecting a different filter'}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {tasks.map((task) => (
+              {filteredTasks.map((task) => (
                 <div
                   key={task.id}
                   className={`bg-white border-2 rounded-lg p-4 transition-all ${
@@ -306,6 +360,15 @@ export default function ExportTasks() {
                         }`}>
                           {task.status.toUpperCase()}
                         </span>
+                        {task.submissionData?.feedback && task.submissionData.feedback.trim().length > 0 ? (
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                            HAS COMMENTS
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                            NO COMMENTS
+                          </span>
+                        )}
                         <span className="text-gray-500">
                           {task.graders?.length || 0} grader{task.graders?.length !== 1 ? 's' : ''}
                         </span>
