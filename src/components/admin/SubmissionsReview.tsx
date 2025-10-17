@@ -15,7 +15,7 @@ export default function SubmissionsReview() {
   const [submissions, setSubmissions] = useState<SubmissionWithTask[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'submitted' | 'reviewed'>('all')
+  const [filter, setFilter] = useState<'all' | 'submitted' | 'reviewed' | 'revision_requested'>('all')
   const supabase = createClient()
 
   useEffect(() => {
@@ -77,6 +77,7 @@ export default function SubmissionsReview() {
       submitted: 'bg-purple-100 text-purple-800',
       reviewed: 'bg-green-100 text-green-800',
       completed: 'bg-green-200 text-green-900',
+      revision_requested: 'bg-orange-100 text-orange-800',
     }
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
@@ -104,6 +105,7 @@ export default function SubmissionsReview() {
     if (filter === 'all') return true
     if (filter === 'submitted') return sub.status === 'submitted'
     if (filter === 'reviewed') return sub.status === 'reviewed'
+    if (filter === 'revision_requested') return sub.status === 'revision_requested'
     return true
   })
 
@@ -111,6 +113,7 @@ export default function SubmissionsReview() {
     total: submissions.length,
     pending: submissions.filter(s => s.status === 'submitted').length,
     reviewed: submissions.filter(s => s.status === 'reviewed').length,
+    revisionRequested: submissions.filter(s => s.status === 'revision_requested').length,
   }
 
   return (
@@ -120,7 +123,7 @@ export default function SubmissionsReview() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 mb-1">Total Submissions</h3>
           <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
@@ -128,6 +131,10 @@ export default function SubmissionsReview() {
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 mb-1">Pending Review</h3>
           <p className="text-3xl font-bold text-purple-600">{stats.pending}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-gray-600 mb-1">Requested Edits</h3>
+          <p className="text-3xl font-bold text-orange-600">{stats.revisionRequested}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 mb-1">Reviewed</h3>
@@ -152,6 +159,14 @@ export default function SubmissionsReview() {
           }`}
         >
           Pending Review ({stats.pending})
+        </button>
+        <button
+          onClick={() => setFilter('revision_requested')}
+          className={`px-4 py-2 rounded ${
+            filter === 'revision_requested' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          Requested Edits ({stats.revisionRequested})
         </button>
         <button
           onClick={() => setFilter('reviewed')}
