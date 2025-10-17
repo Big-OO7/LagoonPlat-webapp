@@ -8,6 +8,7 @@ import SubmissionDetailModal from './SubmissionDetailModal'
 interface SubmissionWithTask extends Submission {
   task?: Task
   labeler_email?: string
+  reviewer_email?: string
 }
 
 export default function SubmissionsReview() {
@@ -35,9 +36,10 @@ export default function SubmissionsReview() {
       return
     }
 
-    // Get unique task IDs and labeler IDs
+    // Get unique task IDs, labeler IDs, and reviewer IDs
     const taskIds = [...new Set(submissionsData.map(s => s.task_id))]
     const labelerIds = [...new Set(submissionsData.map(s => s.labeler_id))]
+    const reviewerIds = [...new Set(submissionsData.map(s => s.reviewed_by).filter(Boolean))]
 
     // Load tasks
     const { data: tasksData } = await supabase
@@ -51,11 +53,18 @@ export default function SubmissionsReview() {
       .select('id, email')
       .in('id', labelerIds)
 
+    // Load reviewer profiles
+    const { data: reviewerProfilesData } = reviewerIds.length > 0 ? await supabase
+      .from('user_profiles')
+      .select('id, email')
+      .in('id', reviewerIds) : { data: [] }
+
     // Combine data
     const enrichedSubmissions = submissionsData.map(sub => ({
       ...sub,
       task: tasksData?.find(t => t.id === sub.task_id),
       labeler_email: profilesData?.find(p => p.id === sub.labeler_id)?.email,
+      reviewer_email: sub.reviewed_by ? reviewerProfilesData?.find(p => p.id === sub.reviewed_by)?.email : undefined,
     }))
 
     setSubmissions(enrichedSubmissions)
@@ -204,6 +213,14 @@ export default function SubmissionsReview() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         Reviewed: {new Date(submission.reviewed_at).toLocaleString()}
+                      </span>
+                    )}
+                    {submission.reviewer_email && (
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Reviewed by: <span className="font-medium text-gray-700">{submission.reviewer_email}</span>
                       </span>
                     )}
                   </div>
