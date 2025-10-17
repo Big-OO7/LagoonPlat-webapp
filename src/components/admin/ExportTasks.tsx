@@ -107,25 +107,41 @@ export default function ExportTasks() {
       // Populate expected values in structure fields from formData
       if (populatedGrader.config.structure && formData) {
         console.log('Structure fields found:', populatedGrader.config.structure.length)
+        console.log('Available formData keys:', Object.keys(formData))
+        console.log('Full formData:', JSON.stringify(formData, null, 2))
+
         populatedGrader.config.structure = populatedGrader.config.structure.map(field => {
-          console.log(`Looking for field.id="${field.id}" in formData`)
-          console.log('Available formData keys:', Object.keys(formData))
-          console.log('formData contents:', formData)
-          console.log('field.name:', field.name)
+          console.log(`\n--- Processing field "${field.id}" (name: "${field.name}") ---`)
 
-          // Try both field.id and field.name as keys
-          let value = formData[field.id]
-          if (value === undefined) {
-            console.log(`Trying field.name="${field.name}" instead`)
-            value = formData[field.name]
+          // Try multiple key variations to find the value
+          const value = formData[field.id] ?? formData[field.name] ?? formData[field.id.toLowerCase()] ?? formData[field.name.toLowerCase()]
+
+          console.log(`Raw value found:`, value, 'Type:', typeof value)
+
+          // Convert value based on field type
+          let expected: string | number | boolean | undefined = undefined
+
+          if (value !== undefined && value !== null && value !== '') {
+            switch (field.type) {
+              case 'int':
+                expected = typeof value === 'number' ? value : parseInt(String(value), 10)
+                if (isNaN(expected as number)) expected = undefined
+                break
+              case 'float':
+                expected = typeof value === 'number' ? value : parseFloat(String(value))
+                if (isNaN(expected as number)) expected = undefined
+                break
+              case 'boolean':
+                expected = typeof value === 'boolean' ? value : String(value).toLowerCase() === 'true'
+                break
+              case 'string':
+              default:
+                expected = String(value)
+                break
+            }
           }
-          console.log(`Value for "${field.id}":`, value, 'Type:', typeof value)
 
-          const expected = (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
-            ? value
-            : undefined
-
-          console.log(`Expected value set to:`, expected)
+          console.log(`Final expected value:`, expected, 'Type:', typeof expected)
 
           return {
             ...field,
@@ -144,13 +160,16 @@ export default function ExportTasks() {
       if (populatedGrader.config.test_cases && formData) {
         console.log('Test cases found:', populatedGrader.config.test_cases.length)
         populatedGrader.config.test_cases = populatedGrader.config.test_cases.map(testCase => {
-          console.log(`Looking for testCase.id="${testCase.id}" in formData`)
-          const value = formData[testCase.id]
-          console.log(`Value for "${testCase.id}":`, value)
+          console.log(`\n--- Processing test case "${testCase.id}" ---`)
+
+          // Try multiple key variations
+          const value = formData[testCase.id] ?? formData[testCase.id.toLowerCase()]
+
+          console.log(`Value for "${testCase.id}":`, value, 'Type:', typeof value)
 
           return {
             ...testCase,
-            expected_value: formData[testCase.id]
+            expected_value: value !== undefined && value !== null && value !== '' ? value : undefined
           }
         })
       }
