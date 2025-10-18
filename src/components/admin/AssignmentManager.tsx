@@ -15,12 +15,21 @@ interface Assignment {
 }
 
 
+interface Labeler {
+  id: string
+  email: string
+}
+
 export default function AssignmentManager() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [filteredAssignments, setFilteredAssignments] = useState<Assignment[]>([])
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [reassigning, setReassigning] = useState(false)
+  const [showReassignModal, setShowReassignModal] = useState(false)
+  const [labelers, setLabelers] = useState<Labeler[]>([])
+  const [selectedLabelerId, setSelectedLabelerId] = useState('')
 
   // Filter states
   const [taskFilter, setTaskFilter] = useState('')
@@ -31,6 +40,7 @@ export default function AssignmentManager() {
 
   useEffect(() => {
     loadAssignments()
+    loadLabelers()
   }, [])
 
   useEffect(() => {
@@ -126,6 +136,64 @@ export default function AssignmentManager() {
       alert('Failed to load assignments. Please check the console for details.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadLabelers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, email')
+        .eq('role', 'labeler')
+        .order('email', { ascending: true })
+
+      if (error) throw error
+      setLabelers(data || [])
+    } catch (error) {
+      console.error('Error loading labelers:', error)
+    }
+  }
+
+  const handleBulkReassign = async () => {
+    if (!selectedLabelerId) {
+      alert('Please select a labeler to reassign to')
+      return
+    }
+
+    const selectedLabeler = labelers.find(l => l.id === selectedLabelerId)
+    if (!selectedLabeler) return
+
+    const selectedData = assignments.filter(a => selectedAssignments.includes(a.id))
+    const uniqueTasks = new Set(selectedData.map(a => a.task_id)).size
+    const uniqueLabelers = new Set(selectedData.map(a => a.labeler_id)).size
+
+    let confirmMessage = `You are about to reassign ${selectedAssignments.length} assignment(s) to ${selectedLabeler.email}:\n\n`
+    confirmMessage += `- Affecting ${uniqueTasks} task(s)\n`
+    confirmMessage += `- From ${uniqueLabelers} labeler(s)\n\n`
+    confirmMessage += `This action cannot be undone. Continue?`
+
+    const confirmed = confirm(confirmMessage)
+    if (!confirmed) return
+
+    setReassigning(true)
+    try {
+      const { error } = await supabase
+        .from('task_assignments')
+        .update({ labeler_id: selectedLabelerId })
+        .in('id', selectedAssignments)
+
+      if (error) throw error
+
+      alert(`Successfully reassigned ${selectedAssignments.length} assignment(s) to ${selectedLabeler.email}!`)
+      setSelectedAssignments([])
+      setShowReassignModal(false)
+      setSelectedLabelerId('')
+      await loadAssignments()
+    } catch (error) {
+      console.error('Error reassigning assignments:', error)
+      alert('Failed to reassign assignments: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setReassigning(false)
     }
   }
 
@@ -294,13 +362,13 @@ export default function AssignmentManager() {
 
       {/* Bulk Actions Bar */}
       {selectedAssignments.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-red-900">
+              <p className="text-sm font-medium text-indigo-900">
                 {selectedAssignments.length} assignment(s) selected
               </p>
-              <p className="text-xs text-red-700 mt-1">
+              <p className="text-xs text-indigo-700 mt-1">
                 Affecting {new Set(assignments.filter(a => selectedAssignments.includes(a.id)).map(a => a.task_id)).size} task(s)
                 {' '}and {new Set(assignments.filter(a => selectedAssignments.includes(a.id)).map(a => a.labeler_id)).size} labeler(s)
               </p>
@@ -311,6 +379,12 @@ export default function AssignmentManager() {
                 className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-50 font-medium"
               >
                 Clear Selection
+              </button>
+              <button
+                onClick={() => setShowReassignModal(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium"
+              >
+                Reassign Selected
               </button>
               <button
                 onClick={handleBulkDelete}
@@ -450,6 +524,57 @@ export default function AssignmentManager() {
           </div>
         </div>
       </div>
+
+      {/* Reassign Modal */}
+      {showReassignModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Reassign Assignments</h3>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Select a labeler to reassign {selectedAssignments.length} assignment(s) to:
+            </p>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Labeler
+              </label>
+              <select
+                value={selectedLabelerId}
+                onChange={(e) => setSelectedLabelerId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="">Select a labeler...</option>
+                {labelers.map(labeler => (
+                  <option key={labeler.id} value={labeler.id}>
+                    {labeler.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowReassignModal(false)
+                  setSelectedLabelerId('')
+                }}
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 font-medium"
+                disabled={reassigning}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkReassign}
+                disabled={!selectedLabelerId || reassigning}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {reassigning ? 'Reassigning...' : 'Reassign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
