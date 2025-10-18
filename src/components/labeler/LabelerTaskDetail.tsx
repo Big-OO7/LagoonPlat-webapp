@@ -17,7 +17,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const [task, setTask] = useState<Task | null>(null)
   const [submission, setSubmission] = useState<Submission | null>(null)
   const [responseText, setResponseText] = useState('')
-  const [formResponses, setFormResponses] = useState<Record<string, string>>({})
+  const [formResponses, setFormResponses] = useState<Record<string, string | number>>({})
   const [editedPrompt, setEditedPrompt] = useState('')
   const [labelerComment, setLabelerComment] = useState('')
   const [flaggedUnsolvable, setFlaggedUnsolvable] = useState(false)
@@ -61,7 +61,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         }
         // Load form responses for structured graders
         if ('formData' in submissionData.response_data && typeof submissionData.response_data.formData === 'object') {
-          setFormResponses(submissionData.response_data.formData as Record<string, string>)
+          setFormResponses(submissionData.response_data.formData as Record<string, string | number>)
         }
         // Load edited prompt if previously saved
         if ('editedPrompt' in submissionData.response_data && submissionData.response_data.editedPrompt) {
@@ -101,7 +101,10 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         // For structure-based graders
         if (grader.config.structure) {
           for (const field of grader.config.structure) {
-            if (!formResponses[field.id] || formResponses[field.id].trim() === '') {
+            const value = formResponses[field.id]
+            const isEmpty = value === undefined || value === null || value === '' ||
+                           (typeof value === 'string' && value.trim() === '')
+            if (isEmpty) {
               alert(`Please fill in the "${field.name}" field before submitting.`)
               return
             }
@@ -110,7 +113,10 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         // For test_cases-based graders (unit_test)
         if (grader.config.test_cases) {
           for (const testCase of grader.config.test_cases) {
-            if (!formResponses[testCase.id] || formResponses[testCase.id].trim() === '') {
+            const value = formResponses[testCase.id]
+            const isEmpty = value === undefined || value === null || value === '' ||
+                           (typeof value === 'string' && value.trim() === '')
+            if (isEmpty) {
               alert(`Please fill in the "${testCase.id}" field before submitting.`)
               return
             }

@@ -163,13 +163,35 @@ export default function ExportTasks() {
           console.log(`\n--- Processing test case "${testCase.id}" ---`)
 
           // Try multiple key variations
-          const value = formData[testCase.id] ?? formData[testCase.id.toLowerCase()]
+          const rawValue = formData[testCase.id] ?? formData[testCase.id.toLowerCase()]
 
-          console.log(`Value for "${testCase.id}":`, value, 'Type:', typeof value)
+          console.log(`Raw value for "${testCase.id}":`, rawValue, 'Type:', typeof rawValue)
+
+          // Try to parse as number if it looks like a number
+          let expected_value: string | number | boolean | undefined = undefined
+
+          if (rawValue !== undefined && rawValue !== null && rawValue !== '') {
+            const strValue = String(rawValue)
+
+            // Check if it's a valid number
+            if (!isNaN(Number(strValue)) && strValue.trim() !== '') {
+              const numValue = Number(strValue)
+              // Use the numeric value if it's a valid number
+              expected_value = numValue
+            } else if (strValue.toLowerCase() === 'true' || strValue.toLowerCase() === 'false') {
+              // Parse as boolean
+              expected_value = strValue.toLowerCase() === 'true'
+            } else {
+              // Keep as string
+              expected_value = strValue
+            }
+          }
+
+          console.log(`Final expected_value for "${testCase.id}":`, expected_value, 'Type:', typeof expected_value)
 
           return {
             ...testCase,
-            expected_value: value !== undefined && value !== null && value !== '' ? value : undefined
+            expected_value
           }
         })
       }

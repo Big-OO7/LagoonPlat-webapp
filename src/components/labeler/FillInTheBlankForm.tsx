@@ -4,8 +4,8 @@ import type { GraderConfig } from '@/types/database'
 
 interface FillInTheBlankFormProps {
   graders: GraderConfig[]
-  formResponses: Record<string, string>
-  onChange: (responses: Record<string, string>) => void
+  formResponses: Record<string, string | number>
+  onChange: (responses: Record<string, string | number>) => void
   disabled?: boolean
 }
 
@@ -15,10 +15,21 @@ export default function FillInTheBlankForm({
   onChange,
   disabled = false
 }: FillInTheBlankFormProps) {
-  const handleFieldChange = (fieldName: string, value: string) => {
+  const handleFieldChange = (fieldName: string, value: string, fieldType?: string) => {
+    // Convert to appropriate type based on field type
+    let typedValue: string | number = value
+
+    if (fieldType === 'int' || fieldType === 'float') {
+      // For numeric fields, store as number if valid
+      const numValue = fieldType === 'int' ? parseInt(value, 10) : parseFloat(value)
+      if (!isNaN(numValue) && value.trim() !== '') {
+        typedValue = numValue
+      }
+    }
+
     onChange({
       ...formResponses,
-      [fieldName]: value
+      [fieldName]: typedValue
     })
   }
 
@@ -51,6 +62,11 @@ export default function FillInTheBlankForm({
               {hasStructure && grader.config.structure!.map((field, fieldIndex) => {
                 const fieldValue = formResponses[field.name] || ''
 
+                // Determine input type and attributes based on field type
+                const isNumeric = field.type === 'int' || field.type === 'float'
+                const inputType = isNumeric ? 'number' : field.type === 'boolean' ? 'text' : 'text'
+                const step = field.type === 'float' ? 'any' : field.type === 'int' ? '1' : undefined
+
                 return (
                   <div key={fieldIndex} className="flex items-start gap-2">
                     {/* Opening XML tag */}
@@ -61,9 +77,10 @@ export default function FillInTheBlankForm({
                     {/* Input field */}
                     <div className="flex-1">
                       <input
-                        type="text"
+                        type={inputType}
+                        step={step}
                         value={fieldValue}
-                        onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                        onChange={(e) => handleFieldChange(field.name, e.target.value, field.type)}
                         disabled={disabled}
                         placeholder={`Enter ${field.type}...`}
                         className="w-full px-3 py-2 border-b-2 border-green-400 bg-yellow-50 focus:bg-white focus:border-green-600 rounded text-gray-900 font-sans focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
@@ -97,6 +114,12 @@ export default function FillInTheBlankForm({
               {hasTestCases && grader.config.test_cases!.map((testCase: { id: string; expected_value?: unknown }, fieldIndex: number) => {
                 const fieldValue = formResponses[testCase.id] || ''
 
+                // Try to infer type from expected value
+                const expectedType = typeof testCase.expected_value
+                const isNumeric = expectedType === 'number'
+                const inputType = isNumeric ? 'number' : 'text'
+                const step = isNumeric ? 'any' : undefined
+
                 return (
                   <div key={fieldIndex} className="flex items-start gap-2">
                     {/* Opening XML tag */}
@@ -107,9 +130,10 @@ export default function FillInTheBlankForm({
                     {/* Input field */}
                     <div className="flex-1">
                       <input
-                        type="text"
+                        type={inputType}
+                        step={step}
                         value={fieldValue}
-                        onChange={(e) => handleFieldChange(testCase.id, e.target.value)}
+                        onChange={(e) => handleFieldChange(testCase.id, e.target.value, isNumeric ? 'float' : 'string')}
                         disabled={disabled}
                         placeholder={`Enter value...`}
                         className="w-full px-3 py-2 border-b-2 border-green-400 bg-yellow-50 focus:bg-white focus:border-green-600 rounded text-gray-900 font-sans focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
