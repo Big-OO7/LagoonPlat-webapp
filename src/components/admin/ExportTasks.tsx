@@ -301,11 +301,18 @@ export default function ExportTasks() {
                 <input
                   type="checkbox"
                   checked={filteredTasks.length > 0 && filteredTasks.every(task => task.selected)}
-                  onChange={(e) => {
+                  onChange={() => {
+                    // Determine if we should select or deselect
+                    const allFilteredSelected = filteredTasks.every(task => task.selected)
+                    const shouldSelect = !allFilteredSelected
+
+                    // Get IDs of filtered tasks for efficient lookup
+                    const filteredTaskIds = new Set(filteredTasks.map(t => t.id))
+
                     // Select/deselect only filtered tasks
                     setTasks(tasks.map(task =>
-                      filteredTasks.some(ft => ft.id === task.id)
-                        ? { ...task, selected: e.target.checked }
+                      filteredTaskIds.has(task.id)
+                        ? { ...task, selected: shouldSelect }
                         : task
                     ))
                   }}
@@ -314,7 +321,7 @@ export default function ExportTasks() {
                 <span className="text-sm font-medium text-gray-700">Select All Visible</span>
               </label>
               <span className="text-sm text-gray-600">
-                {selectedCount} of {filteredTasks.length} selected
+                {filteredTasks.filter(t => t.selected).length} of {filteredTasks.length} selected
               </span>
             </div>
             <button
