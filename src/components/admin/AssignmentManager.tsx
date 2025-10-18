@@ -57,21 +57,42 @@ export default function AssignmentManager() {
       const taskIds = [...new Set(assignmentsData.map(a => a.task_id))]
       const labelerIds = [...new Set(assignmentsData.map(a => a.labeler_id))]
 
-      // Get tasks
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select('id, title, status')
-        .in('id', taskIds)
+      // Batch fetch tasks to avoid URL length limits
+      const BATCH_SIZE = 100
+      const taskBatches: string[][] = []
+      for (let i = 0; i < taskIds.length; i += BATCH_SIZE) {
+        taskBatches.push(taskIds.slice(i, i + BATCH_SIZE))
+      }
 
+      const taskPromises = taskBatches.map(batch =>
+        supabase.from('tasks').select('id, title, status').in('id', batch)
+      )
+      const taskResults = await Promise.all(taskPromises)
+
+      // Check for errors in any batch
+      const tasksError = taskResults.find(r => r.error)?.error
       if (tasksError) throw tasksError
 
-      // Get user profiles
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('user_profiles')
-        .select('id, email')
-        .in('id', labelerIds)
+      // Combine all task data
+      const tasksData = taskResults.flatMap(r => r.data || [])
 
+      // Batch fetch user profiles to avoid URL length limits
+      const labelerBatches: string[][] = []
+      for (let i = 0; i < labelerIds.length; i += BATCH_SIZE) {
+        labelerBatches.push(labelerIds.slice(i, i + BATCH_SIZE))
+      }
+
+      const profilePromises = labelerBatches.map(batch =>
+        supabase.from('user_profiles').select('id, email').in('id', batch)
+      )
+      const profileResults = await Promise.all(profilePromises)
+
+      // Check for errors in any batch
+      const profilesError = profileResults.find(r => r.error)?.error
       if (profilesError) throw profilesError
+
+      // Combine all profile data
+      const profilesData = profileResults.flatMap(r => r.data || [])
 
       // Get all submissions to check which assignments have submissions
       const { data: submissionsData, error: submissionsError } = await supabase
