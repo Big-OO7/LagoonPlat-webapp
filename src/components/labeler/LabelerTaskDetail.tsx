@@ -101,7 +101,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         // For structure-based graders
         if (grader.config.structure) {
           for (const field of grader.config.structure) {
-            const value = formResponses[field.id]
+            const value = formResponses[field.name]
             const isEmpty = value === undefined || value === null || value === '' ||
                            (typeof value === 'string' && value.trim() === '')
             if (isEmpty) {
