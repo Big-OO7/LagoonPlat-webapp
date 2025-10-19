@@ -401,17 +401,20 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
             className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={
               loading ||
+              !bulkJson.trim() ||
               !!jsonParseError ||
-              (validationResult !== null && !validationResult.isValid) ||
-              (bulkJson.trim().length > 0 && !validationResult && !jsonParseError)
+              !validationResult ||
+              !validationResult.isValid
             }
             title={
-              jsonParseError
+              !bulkJson.trim()
+                ? 'Please provide JSON to upload'
+                : jsonParseError
                 ? 'Fix JSON syntax errors'
-                : validationResult && !validationResult.isValid
-                ? 'Fix validation errors before uploading'
-                : bulkJson.trim() && !validationResult
+                : !validationResult
                 ? 'Waiting for validation...'
+                : !validationResult.isValid
+                ? 'Fix validation errors before uploading'
                 : ''
             }
           >
