@@ -18,6 +18,8 @@ export default function ExportTasks() {
   const [filter, setFilter] = useState<'all' | 'with_comments' | 'without_comments'>('all')
   const [exporterEmails, setExporterEmails] = useState<Record<string, string>>({})
   const [currentExportTaskIds, setCurrentExportTaskIds] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [exportStatusFilter, setExportStatusFilter] = useState<'all' | 'exported' | 'not_exported'>('all')
   const supabase = createClient()
 
   useEffect(() => {
@@ -324,12 +326,30 @@ export default function ExportTasks() {
 
   const selectedCount = tasks.filter(task => task.selected).length
 
-  // Filter tasks based on feedback comments
+  // Filter tasks based on feedback comments, search query, and export status
   const filteredTasks = tasks.filter(task => {
-    if (filter === 'all') return true
-    const hasFeedback = task.submissionData?.feedback && task.submissionData.feedback.trim().length > 0
-    if (filter === 'with_comments') return hasFeedback
-    if (filter === 'without_comments') return !hasFeedback
+    // Comment filter
+    if (filter !== 'all') {
+      const hasFeedback = task.submissionData?.feedback && task.submissionData.feedback.trim().length > 0
+      if (filter === 'with_comments' && !hasFeedback) return false
+      if (filter === 'without_comments' && hasFeedback) return false
+    }
+
+    // Search filter (search in title and description)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      const matchesTitle = task.title.toLowerCase().includes(query)
+      const matchesDescription = task.description?.toLowerCase().includes(query)
+      if (!matchesTitle && !matchesDescription) return false
+    }
+
+    // Export status filter
+    if (exportStatusFilter !== 'all') {
+      const isExported = !!task.last_exported_at
+      if (exportStatusFilter === 'exported' && !isExported) return false
+      if (exportStatusFilter === 'not_exported' && isExported) return false
+    }
+
     return true
   })
 
@@ -352,32 +372,72 @@ export default function ExportTasks() {
 
       {!showEditor ? (
         <>
-          {/* Filter Tabs */}
-          <div className="mb-4 flex gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded ${
-                filter === 'all' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              All ({stats.all})
-            </button>
-            <button
-              onClick={() => setFilter('without_comments')}
-              className={`px-4 py-2 rounded ${
-                filter === 'without_comments' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              No Comments ({stats.withoutComments})
-            </button>
-            <button
-              onClick={() => setFilter('with_comments')}
-              className={`px-4 py-2 rounded ${
-                filter === 'with_comments' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
-              }`}
-            >
-              With Comments ({stats.withComments})
-            </button>
+          {/* Search and Filters */}
+          <div className="mb-4 space-y-3">
+            {/* Search Bar */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by task name or description..."
+                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Export Status Filter */}
+              <select
+                value={exportStatusFilter}
+                onChange={(e) => setExportStatusFilter(e.target.value as 'all' | 'exported' | 'not_exported')}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              >
+                <option value="all">All Export Status</option>
+                <option value="exported">Exported</option>
+                <option value="not_exported">Not Exported</option>
+              </select>
+            </div>
+
+            {/* Comment Filter Tabs */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFilter('all')}
+                className={`px-4 py-2 rounded ${
+                  filter === 'all' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                All ({stats.all})
+              </button>
+              <button
+                onClick={() => setFilter('without_comments')}
+                className={`px-4 py-2 rounded ${
+                  filter === 'without_comments' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                No Comments ({stats.withoutComments})
+              </button>
+              <button
+                onClick={() => setFilter('with_comments')}
+                className={`px-4 py-2 rounded ${
+                  filter === 'with_comments' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+                }`}
+              >
+                With Comments ({stats.withComments})
+              </button>
+            </div>
           </div>
 
           {/* Selection Controls */}
@@ -570,10 +630,12 @@ export default function ExportTasks() {
 
           <div className="flex justify-between items-center">
             <button
-              onClick={() => {
+              onClick={async () => {
                 setShowEditor(false)
                 setExportJson('')
                 setCurrentExportTaskIds([])
+                // Reload tasks to show updated export tracking
+                await loadCompletedTasks()
               }}
               className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
             >
