@@ -20,6 +20,8 @@ export default function ExportTasks() {
   const [currentExportTaskIds, setCurrentExportTaskIds] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [exportStatusFilter, setExportStatusFilter] = useState<'all' | 'exported' | 'not_exported'>('all')
+  const [markingExported, setMarkingExported] = useState(false)
+  const [exportMarked, setExportMarked] = useState(false)
   const supabase = createClient()
 
   useEffect(() => {
@@ -258,14 +260,16 @@ export default function ExportTasks() {
     const jsonString = JSON.stringify(exportData, null, 2)
     setExportJson(jsonString)
     setShowEditor(true)
+    setExportMarked(false)
 
-    // Store the task IDs for tracking when user actually copies/downloads
+    // Store the task IDs for tracking when admin marks as exported
     setCurrentExportTaskIds(selectedTasks.map(t => t.id))
   }
 
-  const trackExport = async () => {
+  const handleMarkAsExported = async () => {
     if (currentExportTaskIds.length === 0) return
 
+    setMarkingExported(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
@@ -286,12 +290,14 @@ export default function ExportTasks() {
             .eq('id', taskId)
         }
 
-        // Reload tasks to show updated export info
-        await loadCompletedTasks()
+        setExportMarked(true)
+        setTimeout(() => setExportMarked(false), 3000)
       }
     } catch (error) {
       console.error('Error tracking export:', error)
-      // Don't fail the export if tracking fails
+      alert('Failed to mark tasks as exported: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setMarkingExported(false)
     }
   }
 
@@ -300,16 +306,13 @@ export default function ExportTasks() {
       await navigator.clipboard.writeText(exportJson)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-
-      // Track export when copied
-      await trackExport()
     } catch (error) {
       console.error('Failed to copy:', error)
       alert('Failed to copy to clipboard')
     }
   }
 
-  const handleDownloadJson = async () => {
+  const handleDownloadJson = () => {
     const blob = new Blob([exportJson], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -319,9 +322,6 @@ export default function ExportTasks() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-
-    // Track export when downloaded
-    await trackExport()
   }
 
   const selectedCount = tasks.filter(task => task.selected).length
@@ -571,6 +571,7 @@ export default function ExportTasks() {
       ) : (
         /* JSON Editor View */
         <div className="space-y-4">
+          {/* Info Banner */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-3">
               <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -580,8 +581,50 @@ export default function ExportTasks() {
                 <p className="text-sm font-medium text-blue-900">Export Preview</p>
                 <p className="text-xs text-blue-800 mt-1">
                   Review and edit the JSON below. Grader expected values have been populated from the reviewed labeler submission.
+                  When you&apos;re satisfied, click &quot;Mark as Exported&quot; to record this export.
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Mark as Exported Button */}
+          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-purple-900">Ready to mark as exported?</h3>
+                <p className="text-xs text-purple-700 mt-1">
+                  Click the button to record that you&apos;ve exported these {currentExportTaskIds.length} task{currentExportTaskIds.length !== 1 ? 's' : ''}.
+                  This will track the export timestamp and count.
+                </p>
+              </div>
+              <button
+                onClick={handleMarkAsExported}
+                disabled={markingExported || exportMarked}
+                className={`ml-4 px-6 py-3 rounded-lg font-semibold transition-all ${
+                  exportMarked
+                    ? 'bg-green-100 text-green-800 border-2 border-green-400'
+                    : 'bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed'
+                }`}
+              >
+                {markingExported ? (
+                  <>
+                    <svg className="inline-block animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Marking...
+                  </>
+                ) : exportMarked ? (
+                  <>
+                    <svg className="inline-block -ml-1 mr-2 h-5 w-5 text-green-800" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Marked as Exported!
+                  </>
+                ) : (
+                  '✓ Mark as Exported'
+                )}
+              </button>
             </div>
           </div>
 
