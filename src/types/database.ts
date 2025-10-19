@@ -75,6 +75,9 @@ export interface Task {
   created_by: string
   created_at: string
   updated_at: string
+  last_exported_at: string | null
+  last_exported_by: string | null
+  export_count: number | null
 }
 
 export interface Artifact {

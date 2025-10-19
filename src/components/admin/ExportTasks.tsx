@@ -16,6 +16,7 @@ export default function ExportTasks() {
   const [showEditor, setShowEditor] = useState(false)
   const [copied, setCopied] = useState(false)
   const [filter, setFilter] = useState<'all' | 'with_comments' | 'without_comments'>('all')
+  const [exporterEmails, setExporterEmails] = useState<Record<string, string>>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -79,6 +80,27 @@ export default function ExportTasks() {
     })) || []
 
     setTasks(tasksWithGraders)
+
+    // Load exporter emails for tasks that have been exported
+    const exporterIds = [...new Set(tasksWithGraders
+      .filter(t => t.last_exported_by)
+      .map(t => t.last_exported_by!))]
+
+    if (exporterIds.length > 0) {
+      const { data: exporters } = await supabase
+        .from('user_profiles')
+        .select('id, email')
+        .in('id', exporterIds)
+
+      if (exporters) {
+        const emailMap: Record<string, string> = {}
+        exporters.forEach(e => {
+          emailMap[e.id] = e.email
+        })
+        setExporterEmails(emailMap)
+      }
+    }
+
     setLoading(false)
   }
 
@@ -200,7 +222,7 @@ export default function ExportTasks() {
     })
   }
 
-  const generateExport = () => {
+  const generateExport = async () => {
     const selectedTasks = tasks.filter(task => task.selected)
 
     if (selectedTasks.length === 0) {
@@ -233,6 +255,36 @@ export default function ExportTasks() {
     const jsonString = JSON.stringify(exportData, null, 2)
     setExportJson(jsonString)
     setShowEditor(true)
+
+    // Track export in database
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const now = new Date().toISOString()
+        const taskIds = selectedTasks.map(t => t.id)
+
+        // Update each task's export tracking fields
+        for (const taskId of taskIds) {
+          const task = selectedTasks.find(t => t.id === taskId)
+          const currentCount = task?.export_count || 0
+
+          await supabase
+            .from('tasks')
+            .update({
+              last_exported_at: now,
+              last_exported_by: user.id,
+              export_count: currentCount + 1
+            })
+            .eq('id', taskId)
+        }
+
+        // Reload tasks to show updated export info
+        await loadCompletedTasks()
+      }
+    } catch (error) {
+      console.error('Error tracking export:', error)
+      // Don't fail the export if tracking fails
+    }
   }
 
   const handleCopyToClipboard = async () => {
@@ -398,7 +450,7 @@ export default function ExportTasks() {
                       {task.description && (
                         <p className="text-sm text-gray-600 mt-1">{task.description}</p>
                       )}
-                      <div className="mt-2 flex items-center gap-4 text-sm">
+                      <div className="mt-2 flex items-center gap-4 text-sm flex-wrap">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${
                           task.status === 'completed'
                             ? 'bg-green-100 text-green-800'
@@ -417,6 +469,11 @@ export default function ExportTasks() {
                             NO COMMENTS
                           </span>
                         )}
+                        {task.last_exported_at && (
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                            📤 Exported {task.export_count || 1}x
+                          </span>
+                        )}
                         <span className="text-gray-500">
                           {task.graders?.length || 0} grader{task.graders?.length !== 1 ? 's' : ''}
                         </span>
@@ -424,6 +481,14 @@ export default function ExportTasks() {
                           Created: {new Date(task.created_at).toLocaleDateString()}
                         </span>
                       </div>
+                      {task.last_exported_at && (
+                        <div className="mt-2 text-xs text-gray-500 italic">
+                          Last exported {new Date(task.last_exported_at).toLocaleString()}
+                          {task.last_exported_by && exporterEmails[task.last_exported_by] && (
+                            <> by {exporterEmails[task.last_exported_by]}</>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </label>
                 </div>
