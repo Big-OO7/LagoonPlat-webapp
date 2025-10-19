@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
-import type { BulkTaskUpload, TaskDefinition } from '@/types/database'
+import type { BulkTaskUpload } from '@/types/database'
+import { validateTaskJSON, type ValidationResult } from '@/lib/taskValidator'
 
 interface CreateTaskModalProps {
   userId: string
@@ -17,8 +18,34 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
 
   // Bulk JSON upload
   const [bulkJson, setBulkJson] = useState('')
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
+  const [showValidation, setShowValidation] = useState(false)
 
   const supabase = createClient()
+
+  // Real-time validation with debounce
+  useEffect(() => {
+    if (!bulkJson.trim()) {
+      setValidationResult(null)
+      setShowValidation(false)
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      try {
+        const parsed = JSON.parse(bulkJson)
+        const result = validateTaskJSON(parsed, { strict: false })
+        setValidationResult(result)
+        setShowValidation(true)
+      } catch {
+        // JSON parse error - will be caught by submit handler
+        setValidationResult(null)
+        setShowValidation(false)
+      }
+    }, 500) // Debounce 500ms
+
+    return () => clearTimeout(timeoutId)
+  }, [bulkJson])
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -35,31 +62,24 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
       let bulkData: BulkTaskUpload
       try {
         bulkData = JSON.parse(bulkJson)
-      } catch (err) {
+      } catch {
         throw new Error('Invalid JSON format. Please check your syntax.')
       }
 
-      // Validate structure
-      if (!bulkData.tasks || !Array.isArray(bulkData.tasks)) {
-        throw new Error('JSON must contain a "tasks" array')
-      }
+      // Run comprehensive validation
+      const validation = validateTaskJSON(bulkData, { strict: false })
 
-      if (bulkData.tasks.length === 0) {
-        throw new Error('At least one task is required')
-      }
+      if (!validation.isValid) {
+        const criticalIssues = validation.issues.filter(i => i.severity === 'CRITICAL')
+        const errorIssues = validation.issues.filter(i => i.severity === 'ERROR')
 
-      // Validate each task
-      bulkData.tasks.forEach((task, index) => {
-        if (!task.name) {
-          throw new Error(`Task ${index + 1}: "name" is required`)
+        if (criticalIssues.length > 0) {
+          throw new Error(`Validation failed with ${criticalIssues.length} critical issue(s). Please fix them before uploading.`)
         }
-        if (!task.prompt) {
-          throw new Error(`Task ${index + 1}: "prompt" is required`)
+        if (errorIssues.length > 0) {
+          throw new Error(`Validation failed with ${errorIssues.length} error(s). Please fix them before uploading.`)
         }
-        if (!task.graders || !Array.isArray(task.graders) || task.graders.length === 0) {
-          throw new Error(`Task ${index + 1}: At least one grader is required`)
-        }
-      })
+      }
 
       // Insert all tasks
       const createdTasks: string[] = []
@@ -189,6 +209,93 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
             </div>
           </div>
 
+          {/* Validation Results */}
+          {showValidation && validationResult && (
+            <div className={`border-2 rounded-lg p-4 ${
+              validationResult.isValid
+                ? 'bg-green-50 border-green-300'
+                : validationResult.criticalCount > 0
+                ? 'bg-red-50 border-red-300'
+                : 'bg-orange-50 border-orange-300'
+            }`}>
+              <div className="flex items-start gap-3 mb-3">
+                {validationResult.isValid ? (
+                  <svg className="w-6 h-6 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                )}
+                <div className="flex-1">
+                  <h3 className={`text-base font-semibold ${
+                    validationResult.isValid ? 'text-green-900' : 'text-red-900'
+                  }`}>
+                    {validationResult.isValid ? '✓ Validation Passed' : '✗ Validation Failed'}
+                  </h3>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    <span className="px-2 py-1 bg-white rounded font-medium">
+                      {validationResult.taskCount} task{validationResult.taskCount !== 1 ? 's' : ''}
+                    </span>
+                    <span className="px-2 py-1 bg-white rounded font-medium">
+                      {validationResult.graderCount} grader{validationResult.graderCount !== 1 ? 's' : ''}
+                    </span>
+                    {validationResult.criticalCount > 0 && (
+                      <span className="px-2 py-1 bg-red-600 text-white rounded font-medium">
+                        {validationResult.criticalCount} CRITICAL
+                      </span>
+                    )}
+                    {validationResult.errorCount > 0 && (
+                      <span className="px-2 py-1 bg-orange-600 text-white rounded font-medium">
+                        {validationResult.errorCount} ERROR{validationResult.errorCount !== 1 ? 'S' : ''}
+                      </span>
+                    )}
+                    {validationResult.warningCount > 0 && (
+                      <span className="px-2 py-1 bg-yellow-600 text-white rounded font-medium">
+                        {validationResult.warningCount} WARNING{validationResult.warningCount !== 1 ? 'S' : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Issues List */}
+              {validationResult.issues.length > 0 && (
+                <div className="mt-4 space-y-2 max-h-60 overflow-y-auto">
+                  {validationResult.issues.map((issue, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded text-sm ${
+                        issue.severity === 'CRITICAL'
+                          ? 'bg-red-100 border border-red-300'
+                          : issue.severity === 'ERROR'
+                          ? 'bg-orange-100 border border-orange-300'
+                          : 'bg-yellow-100 border border-yellow-300'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded flex-shrink-0 ${
+                          issue.severity === 'CRITICAL'
+                            ? 'bg-red-600 text-white'
+                            : issue.severity === 'ERROR'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-yellow-600 text-white'
+                        }`}>
+                          {issue.severity}
+                        </span>
+                        <div className="flex-1">
+                          <p className="font-mono text-xs text-gray-700 font-semibold">{issue.path}</p>
+                          <p className="text-gray-800 mt-1">{issue.message}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Help Section */}
           <div className="p-4 bg-blue-50 border border-blue-200 rounded">
             <p className="text-sm text-blue-900 font-medium mb-2">
@@ -227,8 +334,9 @@ export default function CreateTaskModal({ userId, onClose, onSuccess }: CreateTa
 
           <button
             onClick={handleSubmit}
-            className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium disabled:opacity-50"
-            disabled={loading}
+            className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || (validationResult !== null && !validationResult.isValid)}
+            title={validationResult && !validationResult.isValid ? 'Fix validation errors before uploading' : ''}
           >
             {loading ? 'Uploading Tasks...' : 'Upload Tasks'}
           </button>
