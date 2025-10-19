@@ -275,7 +275,7 @@ export default function ExportTasks() {
       if (user) {
         const now = new Date().toISOString()
 
-        // Update each task's export tracking fields
+        // Update each task's export tracking fields in database
         for (const taskId of currentExportTaskIds) {
           const task = tasks.find(t => t.id === taskId)
           const currentCount = task?.export_count || 0
@@ -288,6 +288,33 @@ export default function ExportTasks() {
               export_count: currentCount + 1
             })
             .eq('id', taskId)
+        }
+
+        // Update local state immediately to show export badges
+        setTasks(tasks.map(task => {
+          if (currentExportTaskIds.includes(task.id)) {
+            return {
+              ...task,
+              last_exported_at: now,
+              last_exported_by: user.id,
+              export_count: (task.export_count || 0) + 1
+            }
+          }
+          return task
+        }))
+
+        // Add admin email to exporter emails map
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('email')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          setExporterEmails({
+            ...exporterEmails,
+            [user.id]: profile.email
+          })
         }
 
         setExportMarked(true)
