@@ -17,6 +17,7 @@ export default function ExportTasks() {
   const [copied, setCopied] = useState(false)
   const [filter, setFilter] = useState<'all' | 'with_comments' | 'without_comments'>('all')
   const [exporterEmails, setExporterEmails] = useState<Record<string, string>>({})
+  const [currentExportTaskIds, setCurrentExportTaskIds] = useState<string[]>([])
   const supabase = createClient()
 
   useEffect(() => {
@@ -256,16 +257,21 @@ export default function ExportTasks() {
     setExportJson(jsonString)
     setShowEditor(true)
 
-    // Track export in database
+    // Store the task IDs for tracking when user actually copies/downloads
+    setCurrentExportTaskIds(selectedTasks.map(t => t.id))
+  }
+
+  const trackExport = async () => {
+    if (currentExportTaskIds.length === 0) return
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const now = new Date().toISOString()
-        const taskIds = selectedTasks.map(t => t.id)
 
         // Update each task's export tracking fields
-        for (const taskId of taskIds) {
-          const task = selectedTasks.find(t => t.id === taskId)
+        for (const taskId of currentExportTaskIds) {
+          const task = tasks.find(t => t.id === taskId)
           const currentCount = task?.export_count || 0
 
           await supabase
@@ -292,13 +298,16 @@ export default function ExportTasks() {
       await navigator.clipboard.writeText(exportJson)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+
+      // Track export when copied
+      await trackExport()
     } catch (error) {
       console.error('Failed to copy:', error)
       alert('Failed to copy to clipboard')
     }
   }
 
-  const handleDownloadJson = () => {
+  const handleDownloadJson = async () => {
     const blob = new Blob([exportJson], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -308,6 +317,9 @@ export default function ExportTasks() {
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
+
+    // Track export when downloaded
+    await trackExport()
   }
 
   const selectedCount = tasks.filter(task => task.selected).length
@@ -561,6 +573,7 @@ export default function ExportTasks() {
               onClick={() => {
                 setShowEditor(false)
                 setExportJson('')
+                setCurrentExportTaskIds([])
               }}
               className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
             >
