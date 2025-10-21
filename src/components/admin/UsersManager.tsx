@@ -10,6 +10,9 @@ interface UserProfile {
   created_at: string
   tasks_assigned?: number
   tasks_completed?: number
+  tasks_approved?: number
+  tasks_revision_requested?: number
+  accuracy?: number
 }
 
 export default function UsersManager() {
@@ -37,11 +40,11 @@ export default function UsersManager() {
       return
     }
 
-    // Fetch submission counts for each user (count submitted and reviewed submissions)
+    // Fetch submission counts for each user (count all actually submitted work, not drafts)
     const { data: submissionCounts, error: countError } = await supabase
       .from('submissions')
       .select('labeler_id, status')
-      .in('status', ['submitted', 'reviewed', 'completed'])
+      .in('status', ['submitted', 'reviewed', 'completed', 'revision_requested'])
 
     if (countError) {
       console.error('Failed to load submission counts:', countError)
@@ -49,9 +52,22 @@ export default function UsersManager() {
 
     // Count submissions per labeler
     const completedCountsMap: Record<string, number> = {}
+    const approvedCountsMap: Record<string, number> = {}
+    const revisionRequestedCountsMap: Record<string, number> = {}
+
     if (submissionCounts) {
       submissionCounts.forEach(submission => {
         completedCountsMap[submission.labeler_id] = (completedCountsMap[submission.labeler_id] || 0) + 1
+
+        // Count approved tasks (reviewed or completed status)
+        if (submission.status === 'reviewed' || submission.status === 'completed') {
+          approvedCountsMap[submission.labeler_id] = (approvedCountsMap[submission.labeler_id] || 0) + 1
+        }
+
+        // Count tasks where edits were requested
+        if (submission.status === 'revision_requested') {
+          revisionRequestedCountsMap[submission.labeler_id] = (revisionRequestedCountsMap[submission.labeler_id] || 0) + 1
+        }
       })
     }
 
@@ -73,11 +89,21 @@ export default function UsersManager() {
     }
 
     // Merge counts with user data
-    const usersWithCounts = usersData?.map(user => ({
-      ...user,
-      tasks_assigned: assignedCountsMap[user.id] || 0,
-      tasks_completed: completedCountsMap[user.id] || 0
-    })) || []
+    const usersWithCounts = usersData?.map(user => {
+      const approved = approvedCountsMap[user.id] || 0
+      const revisionRequested = revisionRequestedCountsMap[user.id] || 0
+      const totalReviewed = approved + revisionRequested
+      const accuracy = totalReviewed > 0 ? (approved / totalReviewed) * 100 : 0
+
+      return {
+        ...user,
+        tasks_assigned: assignedCountsMap[user.id] || 0,
+        tasks_completed: completedCountsMap[user.id] || 0,
+        tasks_approved: approved,
+        tasks_revision_requested: revisionRequested,
+        accuracy: accuracy
+      }
+    }) || []
 
     setUsers(usersWithCounts)
     setLoading(false)
@@ -239,6 +265,9 @@ export default function UsersManager() {
                   Tasks Completed
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Accuracy
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Joined
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -271,6 +300,28 @@ export default function UsersManager() {
                     <div className="text-sm font-semibold text-gray-900">
                       {user.role === 'labeler' ? (user.tasks_completed || 0) : '-'}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {user.role === 'labeler' ? (
+                      ((user.tasks_approved || 0) + (user.tasks_revision_requested || 0)) > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <div className={`text-sm font-semibold ${
+                            (user.accuracy || 0) >= 80 ? 'text-green-600' :
+                            (user.accuracy || 0) >= 60 ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {(user.accuracy || 0).toFixed(1)}%
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            ({user.tasks_approved || 0}/{((user.tasks_approved || 0) + (user.tasks_revision_requested || 0))})
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-500">N/A</span>
+                      )
+                    ) : (
+                      <span className="text-sm text-gray-500">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(user.created_at).toLocaleDateString()}
