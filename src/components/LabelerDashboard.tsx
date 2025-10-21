@@ -24,12 +24,27 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
   const [tasks, setTasks] = useState<TaskWithSubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [awaitingTasks, setAwaitingTasks] = useState(false)
+  const [awaitingLoading, setAwaitingLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     loadAssignedTasks()
+    loadAwaitingStatus()
   }, [])
+
+  const loadAwaitingStatus = async () => {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('awaiting_tasks')
+      .eq('id', user.id)
+      .single()
+
+    if (data) {
+      setAwaitingTasks(data.awaiting_tasks || false)
+    }
+  }
 
   const loadAssignedTasks = async () => {
     setLoading(true)
@@ -76,6 +91,22 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
     setLoading(false)
   }
 
+  const handleToggleAwaitingTasks = async () => {
+    setAwaitingLoading(true)
+
+    const newStatus = !awaitingTasks
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ awaiting_tasks: newStatus })
+      .eq('id', user.id)
+
+    if (!error) {
+      setAwaitingTasks(newStatus)
+    }
+
+    setAwaitingLoading(false)
+  }
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -94,8 +125,12 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
-  const pendingTasks = tasks.filter(t => !t.submission || t.submission.status === 'in_progress')
+  const pendingTasks = tasks.filter(t => !t.submission || t.submission.status === 'in_progress' || t.submission.status === 'revision_requested')
   const submittedTasks = tasks.filter(t => t.submission?.status === 'submitted' || t.submission?.status === 'reviewed' || t.submission?.status === 'completed')
+  const revisionTasks = tasks.filter(t => t.submission?.status === 'revision_requested')
+
+  // Check if all tasks have been submitted (no pending tasks)
+  const allTasksSubmitted = tasks.length > 0 && pendingTasks.length === 0
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -127,7 +162,7 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
 
       <div className="container mx-auto p-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-sm font-medium text-gray-600 mb-2">Assigned Tasks</h3>
             <p className="text-3xl font-bold text-green-600">{tasks.length}</p>
@@ -137,10 +172,55 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
             <p className="text-3xl font-bold text-yellow-600">{pendingTasks.length}</p>
           </div>
           <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-sm font-medium text-gray-600 mb-2">Needs Revision</h3>
+            <p className="text-3xl font-bold text-orange-600">{revisionTasks.length}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-sm font-medium text-gray-600 mb-2">Submitted</h3>
             <p className="text-3xl font-bold text-purple-600">{submittedTasks.length}</p>
           </div>
         </div>
+
+        {/* Awaiting Tasks Button */}
+        {allTasksSubmitted && (
+          <div className="mb-6">
+            <button
+              onClick={handleToggleAwaitingTasks}
+              disabled={awaitingLoading}
+              className={`w-full py-4 px-6 rounded-lg font-semibold text-white transition-all duration-200 flex items-center justify-center gap-3 ${
+                awaitingTasks
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg`}
+            >
+              {awaitingLoading ? (
+                <>
+                  <div className="inline-block animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Updating...</span>
+                </>
+              ) : awaitingTasks ? (
+                <>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Awaiting New Tasks - Click to Cancel</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Request New Tasks</span>
+                </>
+              )}
+            </button>
+            {awaitingTasks && (
+              <p className="text-center text-sm text-green-600 mt-2 font-medium">
+                Your admin will be notified that you're ready for new assignments
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Task List */}
         <div className="bg-white rounded-lg shadow-md p-6">

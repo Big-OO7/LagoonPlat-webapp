@@ -105,9 +105,11 @@ export default function AssignmentManager() {
       const profilesData = profileResults.flatMap(r => r.data || [])
 
       // Get all submissions to check which assignments have submissions
+      // Only count submissions that have actually been submitted (not drafts)
       const { data: submissionsData, error: submissionsError } = await supabase
         .from('submissions')
-        .select('task_id, labeler_id')
+        .select('task_id, labeler_id, status')
+        .in('status', ['submitted', 'reviewed', 'completed', 'revision_requested'])
 
       if (submissionsError) throw submissionsError
 
@@ -183,6 +185,12 @@ export default function AssignmentManager() {
         .in('id', selectedAssignments)
 
       if (error) throw error
+
+      // Clear awaiting_tasks flag for the labeler receiving new assignments
+      await supabase
+        .from('user_profiles')
+        .update({ awaiting_tasks: false })
+        .eq('id', selectedLabelerId)
 
       alert(`Successfully reassigned ${selectedAssignments.length} assignment(s) to ${selectedLabeler.email}!`)
       setSelectedAssignments([])

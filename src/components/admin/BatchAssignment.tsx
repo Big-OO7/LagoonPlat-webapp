@@ -100,6 +100,12 @@ export default function BatchAssignment() {
         }
       }
 
+      // Clear awaiting_tasks flag for all labelers receiving new assignments
+      await supabase
+        .from('user_profiles')
+        .update({ awaiting_tasks: false })
+        .in('id', selectedLabelers)
+
       alert(`Successfully assigned ${selectedTasks.length} task(s) to ${selectedLabelers.length} labeler(s)!`)
 
       // Clear selections
