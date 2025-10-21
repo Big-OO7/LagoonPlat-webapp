@@ -216,7 +216,7 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
             </button>
             {awaitingTasks && (
               <p className="text-center text-sm text-green-600 mt-2 font-medium">
-                Your admin will be notified that you're ready for new assignments
+                Your admin will be notified that you&apos;re ready for new assignments
               </p>
             )}
           </div>
