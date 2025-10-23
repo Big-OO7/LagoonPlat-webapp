@@ -8,9 +8,11 @@ import TaskDetailModal from './TaskDetailModal'
 
 interface TasksManagerProps {
   userId: string
+  userRole: string
 }
 
-export default function TasksManager({ userId }: TasksManagerProps) {
+export default function TasksManager({ userId, userRole }: TasksManagerProps) {
+  const isSuperAdmin = userRole === 'super_admin'
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -188,7 +190,7 @@ export default function TasksManager({ userId }: TasksManagerProps) {
           )}
         </div>
         <div className="flex gap-3">
-          {tasks.length > 0 && (
+          {tasks.length > 0 && isSuperAdmin && (
             <button
               onClick={selectAllTasks}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium"
@@ -205,7 +207,7 @@ export default function TasksManager({ userId }: TasksManagerProps) {
         </div>
       </div>
 
-      {selectedTasks.length > 0 && (
+      {selectedTasks.length > 0 && isSuperAdmin && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -262,12 +264,14 @@ export default function TasksManager({ userId }: TasksManagerProps) {
               }`}
             >
               <div className="flex items-start gap-4">
-                <input
-                  type="checkbox"
-                  checked={selectedTasks.includes(task.id)}
-                  onChange={() => toggleTaskSelection(task.id)}
-                  className="w-5 h-5 text-indigo-600 rounded mt-1"
-                />
+                {isSuperAdmin && (
+                  <input
+                    type="checkbox"
+                    checked={selectedTasks.includes(task.id)}
+                    onChange={() => toggleTaskSelection(task.id)}
+                    className="w-5 h-5 text-indigo-600 rounded mt-1"
+                  />
+                )}
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
                     {task.title}
@@ -300,12 +304,14 @@ export default function TasksManager({ userId }: TasksManagerProps) {
                   >
                     View Details
                   </button>
-                  <button
-                    onClick={() => handleDeleteTask(task.id, task.title)}
-                    className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-medium"
-                  >
-                    Delete
-                  </button>
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => handleDeleteTask(task.id, task.title)}
+                      className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 rounded text-sm font-medium"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

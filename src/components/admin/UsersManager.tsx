@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase'
 interface UserProfile {
   id: string
   email: string
-  role: 'admin' | 'labeler'
+  role: 'admin' | 'labeler' | 'super_admin'
   created_at: string
   tasks_assigned?: number
   tasks_completed?: number
@@ -114,7 +114,7 @@ export default function UsersManager() {
     loadUsers()
   }, [loadUsers])
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'labeler') => {
+  const handleRoleChange = async (userId: string, newRole: 'admin' | 'labeler' | 'super_admin') => {
     const confirmed = confirm(`Are you sure you want to change this user's role to ${newRole}?`)
     if (!confirmed) return
 

@@ -36,12 +36,25 @@ export default function AssignmentManager() {
   const [labelerFilter, setLabelerFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
+  // Stats state - loaded via count queries for accuracy
+  const [totalAssignments, setTotalAssignments] = useState(0)
+
   const supabase = createClient()
 
   useEffect(() => {
     loadAssignments()
     loadLabelers()
+    loadTotalCount()
   }, [])
+
+  const loadTotalCount = async () => {
+    // Use count query to get accurate total count (not limited to 1000)
+    const { count } = await supabase
+      .from('task_assignments')
+      .select('*', { count: 'exact', head: true })
+
+    setTotalAssignments(count || 0)
+  }
 
   useEffect(() => {
     applyFilters()
@@ -197,6 +210,7 @@ export default function AssignmentManager() {
       setShowReassignModal(false)
       setSelectedLabelerId('')
       await loadAssignments()
+      await loadTotalCount()
     } catch (error) {
       console.error('Error reassigning assignments:', error)
       alert('Failed to reassign assignments: ' + (error instanceof Error ? error.message : 'Unknown error'))
@@ -277,6 +291,7 @@ export default function AssignmentManager() {
       alert(`Successfully deleted ${selectedAssignments.length} assignment(s)!`)
       setSelectedAssignments([])
       await loadAssignments()
+      await loadTotalCount()
     } catch (error) {
       console.error('Error deleting assignments:', error)
       alert('Failed to delete assignments: ' + (error instanceof Error ? error.message : 'Unknown error'))
@@ -364,7 +379,7 @@ export default function AssignmentManager() {
           </div>
         </div>
         <div className="mt-3 text-sm text-gray-600">
-          Showing {filteredAssignments.length} of {assignments.length} total assignment(s)
+          Showing {filteredAssignments.length} of {totalAssignments} total assignment(s)
         </div>
       </div>
 
@@ -511,7 +526,7 @@ export default function AssignmentManager() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="text-sm text-gray-600">Total Assignments</div>
-          <div className="text-2xl font-bold text-gray-900 mt-1">{assignments.length}</div>
+          <div className="text-2xl font-bold text-gray-900 mt-1">{totalAssignments}</div>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="text-sm text-gray-600">With Submissions</div>

@@ -101,7 +101,7 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
               />
             )}
 
-            {activeTab === 'tasks' && <TasksManager userId={user.id} />}
+            {activeTab === 'tasks' && <TasksManager userId={user.id} userRole={profile.role} />}
             {activeTab === 'submissions' && <SubmissionsReview />}
             {activeTab === 'batch_assign' && <BatchAssignment />}
             {activeTab === 'manage_assignments' && <AssignmentManager />}

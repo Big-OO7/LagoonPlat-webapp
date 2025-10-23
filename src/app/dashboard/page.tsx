@@ -9,7 +9,7 @@ import type { User } from '@supabase/supabase-js'
 
 interface UserProfile {
   id: string
-  role: 'admin' | 'labeler'
+  role: 'admin' | 'labeler' | 'super_admin'
   email: string
   created_at: string
   updated_at: string
@@ -121,7 +121,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {profile.role === 'admin' ? (
+      {profile.role === 'admin' || profile.role === 'super_admin' ? (
         <AdminDashboard user={user} profile={profile} />
       ) : (
         <LabelerDashboard user={user} profile={profile} />

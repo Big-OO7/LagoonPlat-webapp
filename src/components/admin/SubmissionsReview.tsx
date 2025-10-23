@@ -20,7 +20,36 @@ export default function SubmissionsReview() {
 
   useEffect(() => {
     loadSubmissions()
+    loadStats()
   }, [])
+
+  const loadStats = async () => {
+    // Use count queries to get accurate stats for ALL submissions (not limited to 1000)
+    const [
+      totalResult,
+      pendingResult,
+      reviewedResult,
+      revisionRequestedResult,
+      inProgressResult,
+      completedResult,
+    ] = await Promise.all([
+      supabase.from('submissions').select('*', { count: 'exact', head: true }),
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'reviewed'),
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'revision_requested'),
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'in_progress').is('submitted_at', null),
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+    ])
+
+    setStats({
+      total: totalResult.count || 0,
+      pending: pendingResult.count || 0,
+      reviewed: reviewedResult.count || 0,
+      revisionRequested: revisionRequestedResult.count || 0,
+      inProgress: inProgressResult.count || 0,
+      completed: completedResult.count || 0,
+    })
+  }
 
   const loadSubmissions = async () => {
     setLoading(true)
@@ -41,23 +70,68 @@ export default function SubmissionsReview() {
     const labelerIds = [...new Set(submissionsData.map(s => s.labeler_id))]
     const reviewerIds = [...new Set(submissionsData.map(s => s.reviewed_by).filter(Boolean))]
 
-    // Load tasks
-    const { data: tasksData } = await supabase
-      .from('tasks')
-      .select('*')
-      .in('id', taskIds)
+    console.log('Loading data for:', {
+      submissions: submissionsData.length,
+      uniqueTasks: taskIds.length,
+      uniqueLabelers: labelerIds.length,
+      uniqueReviewers: reviewerIds.length
+    })
 
-    // Load labeler profiles
-    const { data: profilesData } = await supabase
-      .from('user_profiles')
-      .select('id, email')
-      .in('id', labelerIds)
+    // Batch fetch tasks to avoid URL length limits
+    const BATCH_SIZE = 100
+    const taskBatches: string[][] = []
+    for (let i = 0; i < taskIds.length; i += BATCH_SIZE) {
+      taskBatches.push(taskIds.slice(i, i + BATCH_SIZE))
+    }
 
-    // Load reviewer profiles
-    const { data: reviewerProfilesData } = reviewerIds.length > 0 ? await supabase
-      .from('user_profiles')
-      .select('id, email')
-      .in('id', reviewerIds) : { data: [] }
+    const taskPromises = taskBatches.map(batch =>
+      supabase.from('tasks').select('id, title, status, created_at').in('id', batch)
+    )
+    const taskResults = await Promise.all(taskPromises)
+
+    // Check for errors and combine results
+    const taskError = taskResults.find(r => r.error)?.error
+    if (taskError) {
+      console.error('Error loading tasks:', taskError)
+    }
+    const tasksData = taskResults.flatMap(r => r.data || [])
+
+    // Batch fetch labeler profiles
+    const labelerBatches: string[][] = []
+    for (let i = 0; i < labelerIds.length; i += BATCH_SIZE) {
+      labelerBatches.push(labelerIds.slice(i, i + BATCH_SIZE))
+    }
+
+    const labelerPromises = labelerBatches.map(batch =>
+      supabase.from('user_profiles').select('id, email').in('id', batch)
+    )
+    const labelerResults = await Promise.all(labelerPromises)
+
+    const labelerError = labelerResults.find(r => r.error)?.error
+    if (labelerError) {
+      console.error('Error loading labelers:', labelerError)
+    }
+    const profilesData = labelerResults.flatMap(r => r.data || [])
+
+    // Batch fetch reviewer profiles
+    let reviewerProfilesData: { id: string; email: string }[] = []
+    if (reviewerIds.length > 0) {
+      const reviewerBatches: string[][] = []
+      for (let i = 0; i < reviewerIds.length; i += BATCH_SIZE) {
+        reviewerBatches.push(reviewerIds.slice(i, i + BATCH_SIZE))
+      }
+
+      const reviewerPromises = reviewerBatches.map(batch =>
+        supabase.from('user_profiles').select('id, email').in('id', batch)
+      )
+      const reviewerResults = await Promise.all(reviewerPromises)
+
+      const reviewerError = reviewerResults.find(r => r.error)?.error
+      if (reviewerError) {
+        console.error('Error loading reviewers:', reviewerError)
+      }
+      reviewerProfilesData = reviewerResults.flatMap(r => r.data || [])
+    }
 
     // Combine data
     const enrichedSubmissions = submissionsData.map(sub => ({
@@ -109,12 +183,15 @@ export default function SubmissionsReview() {
     return true
   })
 
-  const stats = {
-    total: submissions.length,
-    pending: submissions.filter(s => s.status === 'submitted').length,
-    reviewed: submissions.filter(s => s.status === 'reviewed').length,
-    revisionRequested: submissions.filter(s => s.status === 'revision_requested').length,
-  }
+  // Stats state - loaded via count queries for accuracy
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    reviewed: 0,
+    revisionRequested: 0,
+    inProgress: 0,
+    completed: 0,
+  })
 
   return (
     <div>
@@ -123,7 +200,7 @@ export default function SubmissionsReview() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 mb-1">Total Submissions</h3>
           <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
@@ -139,6 +216,14 @@ export default function SubmissionsReview() {
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-600 mb-1">Reviewed</h3>
           <p className="text-3xl font-bold text-green-600">{stats.reviewed}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-gray-600 mb-1">In Progress</h3>
+          <p className="text-3xl font-bold text-yellow-600">{stats.inProgress}</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-gray-600 mb-1">Completed</h3>
+          <p className="text-3xl font-bold text-blue-600">{stats.completed}</p>
         </div>
       </div>
 
@@ -271,6 +356,7 @@ export default function SubmissionsReview() {
           onUpdate={() => {
             setSelectedSubmissionId(null)
             loadSubmissions()
+            loadStats()
           }}
         />
       )}

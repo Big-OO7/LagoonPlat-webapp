@@ -27,10 +27,20 @@ export default function FillInTheBlankForm({
       }
     }
 
-    onChange({
+    console.log('=== FIELD CHANGE DEBUG ===')
+    console.log('Field name:', fieldName)
+    console.log('Raw value:', value)
+    console.log('Field type:', fieldType)
+    console.log('Typed value:', typedValue)
+    console.log('Type of typed value:', typeof typedValue)
+
+    const newResponses = {
       ...formResponses,
       [fieldName]: typedValue
-    })
+    }
+    console.log('New formResponses:', newResponses)
+
+    onChange(newResponses)
   }
 
   return (

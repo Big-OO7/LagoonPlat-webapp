@@ -53,6 +53,11 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       .single()
 
     if (submissionData) {
+      console.log('=== LOADING SUBMISSION DATA ===')
+      console.log('Submission ID:', submissionData.id)
+      console.log('Submission status:', submissionData.status)
+      console.log('Response data:', submissionData.response_data)
+
       setSubmission(submissionData)
       // Load previous response if exists
       if (submissionData.response_data && typeof submissionData.response_data === 'object') {
@@ -61,7 +66,9 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         }
         // Load form responses for structured graders
         if ('formData' in submissionData.response_data && typeof submissionData.response_data.formData === 'object') {
-          setFormResponses(submissionData.response_data.formData as Record<string, string | number>)
+          const formData = submissionData.response_data.formData as Record<string, string | number>
+          console.log('Loading form data:', formData)
+          setFormResponses(formData)
         }
         // Load edited prompt if previously saved
         if ('editedPrompt' in submissionData.response_data && submissionData.response_data.editedPrompt) {
@@ -100,8 +107,21 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       if (grader) {
         // For structure-based graders
         if (grader.config.structure) {
+          console.log('=== VALIDATION DEBUG ===')
+          console.log('formResponses:', formResponses)
+          console.log('grader.config.structure:', grader.config.structure)
+
           for (const field of grader.config.structure) {
             const value = formResponses[field.name]
+            console.log(`Checking field "${field.name}":`, {
+              value,
+              type: typeof value,
+              isUndefined: value === undefined,
+              isNull: value === null,
+              isEmpty: value === '',
+              isEmptyString: typeof value === 'string' && value.trim() === ''
+            })
+
             const isEmpty = value === undefined || value === null || value === '' ||
                            (typeof value === 'string' && value.trim() === '')
             if (isEmpty) {
@@ -174,7 +194,10 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       if (submission) {
         // Update existing submission
         console.log('Updating existing submission:', submission.id)
-        const updateData = {
+        console.log('Previous submission status:', submission.status)
+
+        // For revision_requested submissions, also clear review fields to allow resubmission
+        const updateData: Record<string, unknown> = {
           response_data: responseData,
           rubric_data: {}, // Legacy field, provide empty object
           grader_results: graderResults,
@@ -185,18 +208,59 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           labeler_comment: labelerComment || null,
           flagged_unsolvable: flaggedUnsolvable,
         }
+
+        // If this was a revision request, clear the review fields
+        if (submission.status === 'revision_requested') {
+          console.log('Clearing review fields for revision_requested submission')
+          updateData.reviewed_at = null
+          updateData.reviewed_by = null
+          updateData.feedback = null
+        }
+
         console.log('Update data:', updateData)
 
-        const { error } = await supabase
+        const { data: updatedData, error } = await supabase
           .from('submissions')
           .update(updateData)
           .eq('id', submission.id)
+          .select()
 
         if (error) {
-          console.error('Database update error:', error)
-          throw error
+          console.error('=== DATABASE UPDATE FAILED ===')
+          console.error('Error code:', error.code)
+          console.error('Error message:', error.message)
+          console.error('Error details:', error.details)
+          console.error('Error hint:', error.hint)
+          console.error('Full error object:', JSON.stringify(error, null, 2))
+
+          // More detailed error for user
+          let errorMsg = `Failed to update submission: ${error.message}`
+          if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
+            errorMsg = '🚫 PERMISSION ERROR\n\n'
+            errorMsg += 'You do not have permission to update this submission.\n\n'
+            errorMsg += 'This is a database security policy issue. An administrator needs to update the Row Level Security (RLS) policy to allow labelers to update submissions with status "revision_requested".\n\n'
+            errorMsg += `Error: ${error.message}\n\n`
+            errorMsg += 'Please contact the administrator and share this screenshot.'
+          } else if (error.hint) {
+            errorMsg += `\n\nHint: ${error.hint}`
+          }
+
+          // Show error to user immediately
+          alert(errorMsg)
+          throw new Error(errorMsg)
         }
-        console.log('Submission updated successfully')
+
+        if (!updatedData || updatedData.length === 0) {
+          console.error('=== UPDATE RETURNED NO DATA ===')
+          console.error('This might indicate a permissions issue or the row was not found')
+          alert('⚠️ WARNING: Update completed but no data was returned. This might indicate a permissions issue. Please check with an administrator.')
+        }
+
+        console.log('=== SUBMISSION UPDATED SUCCESSFULLY ===')
+        console.log('Updated submission data:', updatedData)
+
+        // Show success message to user
+        alert('✅ Success! Your revised submission has been saved and resubmitted for review.')
       } else {
         // Create new submission
         console.log('Creating new submission')
@@ -350,6 +414,15 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
   const isReadOnly = submission?.status === 'reviewed'
   const canUnsubmit = submission?.status === 'submitted'
   const needsRevision = submission?.status === 'revision_requested'
+
+  // Debug: Log submission state
+  console.log('=== TASK DETAIL DEBUG ===')
+  console.log('Submission status:', submission?.status)
+  console.log('isReadOnly:', isReadOnly)
+  console.log('canUnsubmit:', canUnsubmit)
+  console.log('needsRevision:', needsRevision)
+  console.log('formResponses:', formResponses)
+  console.log('Form should be editable:', !isReadOnly && !canUnsubmit)
 
   // Check if task uses structured graders (form-based) or plain text
   const hasStructuredGrader = task.graders && Array.isArray(task.graders) && task.graders.length > 0 && task.graders.some(g => {
