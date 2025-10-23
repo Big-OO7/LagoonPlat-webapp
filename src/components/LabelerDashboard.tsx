@@ -129,6 +129,19 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
   const submittedTasks = tasks.filter(t => t.submission?.status === 'submitted' || t.submission?.status === 'reviewed' || t.submission?.status === 'completed')
   const revisionTasks = tasks.filter(t => t.submission?.status === 'revision_requested')
 
+  // Calculate overall accuracy percentage
+  const gradedSubmissions = tasks.filter(t =>
+    t.submission?.grader_results &&
+    typeof t.submission.grader_results === 'object' &&
+    'percentageScore' in t.submission.grader_results
+  )
+  const overallAccuracy = gradedSubmissions.length > 0
+    ? gradedSubmissions.reduce((sum, t) => {
+        const results = t.submission!.grader_results as { percentageScore: number }
+        return sum + results.percentageScore
+      }, 0) / gradedSubmissions.length
+    : null
+
   // Check if all tasks have been submitted (no pending tasks)
   const allTasksSubmitted = tasks.length > 0 && pendingTasks.length === 0
 
@@ -162,7 +175,7 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
 
       <div className="container mx-auto p-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-sm font-medium text-gray-600 mb-2">Assigned Tasks</h3>
             <p className="text-3xl font-bold text-green-600">{tasks.length}</p>
@@ -178,6 +191,20 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-sm font-medium text-gray-600 mb-2">Submitted</h3>
             <p className="text-3xl font-bold text-purple-600">{submittedTasks.length}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-sm font-medium text-gray-600 mb-2">Accuracy</h3>
+            {overallAccuracy !== null ? (
+              <p className={`text-3xl font-bold ${
+                overallAccuracy >= 90 ? 'text-green-600' :
+                overallAccuracy >= 70 ? 'text-yellow-600' :
+                'text-red-600'
+              }`}>
+                {overallAccuracy.toFixed(1)}%
+              </p>
+            ) : (
+              <p className="text-2xl text-gray-400">N/A</p>
+            )}
           </div>
         </div>
 
@@ -265,6 +292,19 @@ export default function LabelerDashboard({ user, profile }: LabelerDashboardProp
                             ? task.submission.status.replace('_', ' ').toUpperCase()
                             : 'NOT STARTED'}
                         </span>
+                        {task.submission?.grader_results &&
+                          typeof task.submission.grader_results === 'object' &&
+                          'percentageScore' in task.submission.grader_results && (
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${
+                            (task.submission.grader_results as { percentageScore: number }).percentageScore >= 90
+                              ? 'bg-green-100 text-green-800'
+                              : (task.submission.grader_results as { percentageScore: number }).percentageScore >= 70
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            Accuracy: {((task.submission.grader_results as { percentageScore: number }).percentageScore).toFixed(1)}%
+                          </span>
+                        )}
                         {task.deadline && (
                           <span className={`flex items-center gap-1 ${
                             new Date(task.deadline) < new Date() ? 'text-red-600 font-medium' : ''
