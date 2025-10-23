@@ -17,24 +17,34 @@ export default function TasksManager({ userId }: TasksManagerProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedTasks, setSelectedTasks] = useState<string[]>([])
   const [deleting, setDeleting] = useState(false)
+  const [page, setPage] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
   const supabase = createClient()
+  const ITEMS_PER_PAGE = 50
 
-  const loadTasks = async () => {
+  const loadTasks = async (pageNum: number = 0) => {
     setLoading(true)
-    const { data, error } = await supabase
+    const from = pageNum * ITEMS_PER_PAGE
+    const to = from + ITEMS_PER_PAGE - 1
+
+    const { data, error, count } = await supabase
       .from('tasks')
-      .select('*')
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
+      .range(from, to)
 
     if (!error && data) {
       setTasks(data)
+      setTotalCount(count || 0)
+      setHasMore(data.length === ITEMS_PER_PAGE)
     }
     setLoading(false)
   }
 
   useEffect(() => {
-    loadTasks()
-  }, [])
+    loadTasks(page)
+  }, [page])
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
@@ -64,7 +74,7 @@ export default function TasksManager({ userId }: TasksManagerProps) {
       if (error) throw error
 
       alert('Task deleted successfully!')
-      loadTasks()
+      loadTasks(page)
     } catch (error) {
       alert('Failed to delete task: ' + (error instanceof Error ? error.message : 'Unknown error'))
     }
@@ -108,7 +118,7 @@ export default function TasksManager({ userId }: TasksManagerProps) {
 
       alert(`Successfully deleted ${selectedTasks.length} task(s)!`)
       setSelectedTasks([])
-      await loadTasks()
+      await loadTasks(page)
     } catch (error) {
       console.error('Error deleting tasks:', error)
       alert('Failed to delete tasks: ' + (error instanceof Error ? error.message : 'Unknown error'))
@@ -150,7 +160,7 @@ export default function TasksManager({ userId }: TasksManagerProps) {
       if (error) throw error
 
       alert(`Task duplicated successfully as "${newTitle}"!`)
-      await loadTasks()
+      await loadTasks(page)
 
       // Optionally open the new task for editing
       if (newTask) {
@@ -162,10 +172,21 @@ export default function TasksManager({ userId }: TasksManagerProps) {
     }
   }
 
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE)
+  const startItem = page * ITEMS_PER_PAGE + 1
+  const endItem = Math.min((page + 1) * ITEMS_PER_PAGE, totalCount)
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Tasks Management</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Tasks Management</h2>
+          {totalCount > 0 && (
+            <p className="text-sm text-gray-600 mt-1">
+              Showing {startItem}-{endItem} of {totalCount} tasks
+            </p>
+          )}
+        </div>
         <div className="flex gap-3">
           {tasks.length > 0 && (
             <button
@@ -292,13 +313,92 @@ export default function TasksManager({ userId }: TasksManagerProps) {
         </div>
       )}
 
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="mt-6 flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-lg">
+          <div className="flex flex-1 justify-between sm:hidden">
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+              className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-700">
+                Page <span className="font-medium">{page + 1}</span> of <span className="font-medium">{totalPages}</span>
+              </p>
+            </div>
+            <div>
+              <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                <button
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="sr-only">Previous</span>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number
+                  if (totalPages <= 5) {
+                    pageNum = i
+                  } else if (page < 3) {
+                    pageNum = i
+                  } else if (page > totalPages - 4) {
+                    pageNum = totalPages - 5 + i
+                  } else {
+                    pageNum = page - 2 + i
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                        page === pageNum
+                          ? 'z-10 bg-indigo-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                          : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                      }`}
+                    >
+                      {pageNum + 1}
+                    </button>
+                  )
+                })}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page === totalPages - 1}
+                  className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="sr-only">Next</span>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreateModal && (
         <CreateTaskModal
           userId={userId}
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false)
-            loadTasks()
+            setPage(0) // Go to first page when creating new task
+            loadTasks(0)
           }}
         />
       )}
@@ -307,7 +407,7 @@ export default function TasksManager({ userId }: TasksManagerProps) {
         <TaskDetailModal
           taskId={selectedTaskId}
           onClose={() => setSelectedTaskId(null)}
-          onUpdate={() => loadTasks()}
+          onUpdate={() => loadTasks(page)}
         />
       )}
     </div>

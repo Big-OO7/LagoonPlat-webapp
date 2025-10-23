@@ -47,32 +47,57 @@ export default function DashboardOverview({ profile, onNavigate }: DashboardOver
   const loadStats = async () => {
     setLoading(true)
 
-    // Load tasks
-    const { data: tasks } = await supabase
-      .from('tasks')
-      .select('status')
+    // Use count queries for better performance with large datasets
+    const [
+      totalTasksResult,
+      draftTasksResult,
+      assignedTasksResult,
+      inProgressTasksResult,
+      submittedTasksResult,
+      reviewedTasksResult,
+      completedTasksResult,
+      totalSubmissionsResult,
+      pendingReviewResult,
+      reviewedSubmissionsResult,
+      totalUsersResult,
+      totalLabelersResult,
+      totalAdminsResult,
+    ] = await Promise.all([
+      supabase.from('tasks').select('*', { count: 'exact', head: true }),
+      supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
+      supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'assigned'),
+      supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
+      supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
+      supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'reviewed'),
+      supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+      supabase.from('submissions').select('*', { count: 'exact', head: true }),
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'reviewed'),
+      supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
+      supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('role', 'labeler'),
+      supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('role', 'admin'),
+    ])
 
-    // Load submissions
-    const { data: submissions } = await supabase
-      .from('submissions')
-      .select('status')
+    const activeTasks =
+      (assignedTasksResult.count || 0) +
+      (inProgressTasksResult.count || 0) +
+      (submittedTasksResult.count || 0)
 
-    // Load users
-    const { data: users } = await supabase
-      .from('user_profiles')
-      .select('role')
+    const completedTasks =
+      (reviewedTasksResult.count || 0) +
+      (completedTasksResult.count || 0)
 
     setStats({
-      totalTasks: tasks?.length || 0,
-      draftTasks: tasks?.filter(t => t.status === 'draft').length || 0,
-      activeTasks: tasks?.filter(t => ['assigned', 'in_progress', 'submitted'].includes(t.status)).length || 0,
-      completedTasks: tasks?.filter(t => ['reviewed', 'completed'].includes(t.status)).length || 0,
-      totalSubmissions: submissions?.length || 0,
-      pendingReview: submissions?.filter(s => s.status === 'submitted').length || 0,
-      reviewedSubmissions: submissions?.filter(s => s.status === 'reviewed').length || 0,
-      totalUsers: users?.length || 0,
-      totalLabelers: users?.filter(u => u.role === 'labeler').length || 0,
-      totalAdmins: users?.filter(u => u.role === 'admin').length || 0,
+      totalTasks: totalTasksResult.count || 0,
+      draftTasks: draftTasksResult.count || 0,
+      activeTasks,
+      completedTasks,
+      totalSubmissions: totalSubmissionsResult.count || 0,
+      pendingReview: pendingReviewResult.count || 0,
+      reviewedSubmissions: reviewedSubmissionsResult.count || 0,
+      totalUsers: totalUsersResult.count || 0,
+      totalLabelers: totalLabelersResult.count || 0,
+      totalAdmins: totalAdminsResult.count || 0,
     })
 
     setLoading(false)
