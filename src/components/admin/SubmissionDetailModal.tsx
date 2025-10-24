@@ -92,6 +92,20 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
   const handleMarkAsReviewed = async () => {
     if (!submission) return
 
+    // Prevent approving if there is feedback/comments
+    if (feedback.trim()) {
+      const confirmed = confirm(
+        '⚠️ WARNING: This submission has comments/feedback.\n\n' +
+        'Approving with comments will make it unavailable for the labeler to fix.\n' +
+        'The task will appear in "With Comments" in the Export page but cannot be edited.\n\n' +
+        'Instead, you should:\n' +
+        '1. Use "Request Revision" button to send it back to the labeler\n' +
+        '2. The labeler can then fix the issues and resubmit\n\n' +
+        'Do you really want to approve WITH comments? (Not recommended)'
+      )
+      if (!confirmed) return
+    }
+
     setSubmitting(true)
 
     try {

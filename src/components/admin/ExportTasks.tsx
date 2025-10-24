@@ -31,11 +31,12 @@ export default function ExportTasks() {
   const loadCompletedTasks = async () => {
     setLoading(true)
 
-    // Get all submissions that have been reviewed or completed with full data
+    // Get all submissions that have been reviewed (have reviewed_at timestamp)
+    // Status doesn't matter - what matters is if it's been reviewed by an admin
     const { data: reviewedSubmissions, error: submissionsError } = await supabase
       .from('submissions')
       .select('*')
-      .in('status', ['reviewed', 'completed'])
+      .not('reviewed_at', 'is', null)
 
     if (submissionsError) {
       console.error('Error loading submissions:', submissionsError)

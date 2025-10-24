@@ -63,11 +63,36 @@ export default function AssignmentManager() {
   const loadAssignments = async () => {
     setLoading(true)
     try {
-      // Get all assignments
-      const { data: assignmentsData, error: assignmentsError } = await supabase
-        .from('task_assignments')
-        .select('id, task_id, labeler_id, assigned_at')
-        .order('assigned_at', { ascending: false })
+      // Get ALL assignments without limit using multiple range queries if needed
+      // Supabase default limit is 1000, so we need to fetch in batches
+      const PAGE_SIZE = 1000
+      let allAssignments: Array<{ id: string; task_id: string; labeler_id: string; assigned_at: string }> = []
+      let page = 0
+      let hasMore = true
+
+      while (hasMore) {
+        const from = page * PAGE_SIZE
+        const to = from + PAGE_SIZE - 1
+
+        const { data, error } = await supabase
+          .from('task_assignments')
+          .select('id, task_id, labeler_id, assigned_at')
+          .order('assigned_at', { ascending: false })
+          .range(from, to)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allAssignments = [...allAssignments, ...data]
+          hasMore = data.length === PAGE_SIZE
+          page++
+        } else {
+          hasMore = false
+        }
+      }
+
+      const assignmentsData = allAssignments
+      const assignmentsError = null
 
       if (assignmentsError) throw assignmentsError
       if (!assignmentsData) {

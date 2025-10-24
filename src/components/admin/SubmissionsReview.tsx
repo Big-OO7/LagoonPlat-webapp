@@ -25,20 +25,28 @@ export default function SubmissionsReview() {
 
   const loadStats = async () => {
     // Use count queries to get accurate stats for ALL submissions (not limited to 1000)
+    // Key insight: A submission is "reviewed" if it has a reviewed_at timestamp
+    // "Pending Review" means submitted_at exists but reviewed_at does not
     const [
       totalResult,
       pendingResult,
       reviewedResult,
       revisionRequestedResult,
       inProgressResult,
-      completedResult,
+      exportedResult,
     ] = await Promise.all([
-      supabase.from('submissions').select('*', { count: 'exact', head: true }),
-      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
-      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'reviewed'),
+      // Total submissions that have been submitted
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).not('submitted_at', 'is', null),
+      // Pending Review: submitted but not yet reviewed
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).not('submitted_at', 'is', null).is('reviewed_at', null),
+      // Reviewed: has been reviewed (reviewed_at is set) and NOT marked for revision
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).not('reviewed_at', 'is', null).neq('status', 'revision_requested'),
+      // Requested Edits: specifically marked for revision
       supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'revision_requested'),
-      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'in_progress').is('submitted_at', null),
-      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+      // In Progress: true drafts (no submitted_at timestamp)
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).is('submitted_at', null),
+      // Exported: Count tasks that have been exported (checked via tasks table)
+      supabase.from('tasks').select('*', { count: 'exact', head: true }).not('last_exported_at', 'is', null),
     ])
 
     setStats({
@@ -47,7 +55,7 @@ export default function SubmissionsReview() {
       reviewed: reviewedResult.count || 0,
       revisionRequested: revisionRequestedResult.count || 0,
       inProgress: inProgressResult.count || 0,
-      completed: completedResult.count || 0,
+      completed: exportedResult.count || 0, // Now shows exported tasks count
     })
   }
 
@@ -222,7 +230,7 @@ export default function SubmissionsReview() {
           <p className="text-3xl font-bold text-yellow-600">{stats.inProgress}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Completed</h3>
+          <h3 className="text-sm font-medium text-gray-600 mb-1">Exported</h3>
           <p className="text-3xl font-bold text-blue-600">{stats.completed}</p>
         </div>
       </div>
