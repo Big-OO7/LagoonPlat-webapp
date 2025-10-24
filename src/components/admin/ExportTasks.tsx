@@ -38,8 +38,18 @@ export default function ExportTasks() {
       .select('*')
       .not('reviewed_at', 'is', null)
 
+    console.log('=== EXPORT DEBUGGING ===')
+    console.log('Reviewed submissions found:', reviewedSubmissions?.length || 0)
+
     if (submissionsError) {
       console.error('Error loading submissions:', submissionsError)
+      setLoading(false)
+      return
+    }
+
+    if (!reviewedSubmissions || reviewedSubmissions.length === 0) {
+      console.log('No reviewed submissions found')
+      setTasks([])
       setLoading(false)
       return
     }
@@ -56,6 +66,7 @@ export default function ExportTasks() {
     })
 
     const taskIds = Array.from(taskSubmissionMap.keys())
+    console.log('Unique tasks with reviewed submissions:', taskIds.length)
 
     if (taskIds.length === 0) {
       setTasks([])
@@ -70,22 +81,41 @@ export default function ExportTasks() {
       .in('id', taskIds)
       .order('created_at', { ascending: false })
 
+    console.log('Tasks fetched:', tasksData?.length || 0)
+
     if (error) {
       console.error('Error loading tasks:', error)
       setLoading(false)
       return
     }
 
-    // Filter tasks that have graders and attach submission data
+    // Check grader status
     const tasksWithGraders = tasksData?.filter(task =>
       task.graders && Array.isArray(task.graders) && task.graders.length > 0
-    ).map(task => ({
+    ) || []
+
+    const tasksWithoutGraders = tasksData?.filter(task =>
+      !task.graders || !Array.isArray(task.graders) || task.graders.length === 0
+    ) || []
+
+    console.log('Tasks WITH graders:', tasksWithGraders.length)
+    console.log('Tasks WITHOUT graders:', tasksWithoutGraders.length)
+
+    if (tasksWithoutGraders.length > 0) {
+      console.log('Sample tasks without graders:', tasksWithoutGraders.slice(0, 3).map(t => ({
+        title: t.title,
+        graders: t.graders
+      })))
+    }
+
+    const finalTasks = tasksWithGraders.map(task => ({
       ...task,
       selected: false,
       submissionData: taskSubmissionMap.get(task.id)
-    })) || []
+    }))
 
-    setTasks(tasksWithGraders)
+    console.log('Final exportable tasks:', finalTasks.length)
+    setTasks(finalTasks)
 
     // Load exporter emails for tasks that have been exported
     const exporterIds = [...new Set(tasksWithGraders
