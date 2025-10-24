@@ -74,20 +74,33 @@ export default function ExportTasks() {
       return
     }
 
-    // Fetch those tasks
-    const { data: tasksData, error } = await supabase
-      .from('tasks')
-      .select('*')
-      .in('id', taskIds)
-      .order('created_at', { ascending: false })
+    // Fetch tasks in batches to avoid URL length limits
+    const BATCH_SIZE = 100
+    let allTasks: Task[] = []
+
+    for (let i = 0; i < taskIds.length; i += BATCH_SIZE) {
+      const batch = taskIds.slice(i, i + BATCH_SIZE)
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .in('id', batch)
+
+      if (error) {
+        console.error('Error loading task batch:', error)
+        continue
+      }
+
+      if (data) {
+        allTasks = [...allTasks, ...(data as Task[])]
+      }
+    }
+
+    // Sort by created_at descending
+    const tasksData = allTasks.sort((a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
 
     console.log('Tasks fetched:', tasksData?.length || 0)
-
-    if (error) {
-      console.error('Error loading tasks:', error)
-      setLoading(false)
-      return
-    }
 
     // Check grader status
     const tasksWithGraders = tasksData?.filter(task =>
