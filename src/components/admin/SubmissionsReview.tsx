@@ -215,8 +215,10 @@ export default function SubmissionsReview() {
 
   const filteredSubmissions = submissions.filter(sub => {
     if (filter === 'all') return true
-    if (filter === 'submitted') return sub.status === 'submitted'
-    if (filter === 'reviewed') return sub.status === 'reviewed'
+    // Pending Review: submitted but not yet reviewed (matches stats logic)
+    if (filter === 'submitted') return sub.submitted_at !== null && sub.reviewed_at === null
+    // Reviewed: has been reviewed and NOT marked for revision
+    if (filter === 'reviewed') return sub.reviewed_at !== null && sub.status !== 'revision_requested'
     if (filter === 'revision_requested') return sub.status === 'revision_requested'
     return true
   })
