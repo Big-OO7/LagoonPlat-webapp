@@ -62,21 +62,51 @@ export default function SubmissionsReview() {
   const loadSubmissions = async () => {
     setLoading(true)
 
-    // Load all submissions
-    const { data: submissionsData } = await supabase
-      .from('submissions')
-      .select('*')
-      .order('submitted_at', { ascending: false })
+    // Load all submissions without row limits
+    // Supabase has a default limit of 1000 rows, so we need to paginate
+    let allSubmissions: Submission[] = []
+    let page = 0
+    const pageSize = 1000
+    let hasMore = true
 
-    if (!submissionsData) {
+    while (hasMore) {
+      const { data: submissionsData, error } = await supabase
+        .from('submissions')
+        .select('*')
+        .order('submitted_at', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+
+      if (error) {
+        console.error('Error loading submissions:', error)
+        break
+      }
+
+      if (!submissionsData || submissionsData.length === 0) {
+        hasMore = false
+        break
+      }
+
+      allSubmissions = [...allSubmissions, ...submissionsData]
+
+      // If we got less than pageSize rows, we've reached the end
+      if (submissionsData.length < pageSize) {
+        hasMore = false
+      } else {
+        page++
+      }
+    }
+
+    if (allSubmissions.length === 0) {
       setLoading(false)
       return
     }
 
+    const submissionsData = allSubmissions
+
     // Get unique task IDs, labeler IDs, and reviewer IDs
     const taskIds = [...new Set(submissionsData.map(s => s.task_id))]
     const labelerIds = [...new Set(submissionsData.map(s => s.labeler_id))]
-    const reviewerIds = [...new Set(submissionsData.map(s => s.reviewed_by).filter(Boolean))]
+    const reviewerIds = [...new Set(submissionsData.map(s => s.reviewed_by).filter((id): id is string => id !== null))]
 
     console.log('Loading data for:', {
       submissions: submissionsData.length,
@@ -93,7 +123,7 @@ export default function SubmissionsReview() {
     }
 
     const taskPromises = taskBatches.map(batch =>
-      supabase.from('tasks').select('id, title, status, created_at').in('id', batch)
+      supabase.from('tasks').select('*').in('id', batch)
     )
     const taskResults = await Promise.all(taskPromises)
 

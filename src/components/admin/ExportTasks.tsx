@@ -33,26 +33,50 @@ export default function ExportTasks() {
 
     // Get all submissions that have been reviewed (have reviewed_at timestamp)
     // Status doesn't matter - what matters is if it's been reviewed by an admin
-    const { data: reviewedSubmissions, error: submissionsError } = await supabase
-      .from('submissions')
-      .select('*')
-      .not('reviewed_at', 'is', null)
+    // Load with pagination to avoid Supabase 1000 row limit
+    let allReviewedSubmissions: Submission[] = []
+    let page = 0
+    const pageSize = 1000
+    let hasMore = true
 
-    console.log('=== EXPORT DEBUGGING ===')
-    console.log('Reviewed submissions found:', reviewedSubmissions?.length || 0)
+    while (hasMore) {
+      const { data: reviewedSubmissions, error: submissionsError } = await supabase
+        .from('submissions')
+        .select('*')
+        .not('reviewed_at', 'is', null)
+        .range(page * pageSize, (page + 1) * pageSize - 1)
 
-    if (submissionsError) {
-      console.error('Error loading submissions:', submissionsError)
-      setLoading(false)
-      return
+      if (submissionsError) {
+        console.error('Error loading submissions:', submissionsError)
+        break
+      }
+
+      if (!reviewedSubmissions || reviewedSubmissions.length === 0) {
+        hasMore = false
+        break
+      }
+
+      allReviewedSubmissions = [...allReviewedSubmissions, ...reviewedSubmissions]
+
+      // If we got less than pageSize rows, we've reached the end
+      if (reviewedSubmissions.length < pageSize) {
+        hasMore = false
+      } else {
+        page++
+      }
     }
 
-    if (!reviewedSubmissions || reviewedSubmissions.length === 0) {
+    console.log('=== EXPORT DEBUGGING ===')
+    console.log('Reviewed submissions found:', allReviewedSubmissions.length)
+
+    if (allReviewedSubmissions.length === 0) {
       console.log('No reviewed submissions found')
       setTasks([])
       setLoading(false)
       return
     }
+
+    const reviewedSubmissions = allReviewedSubmissions
 
     // Create a map of task_id to submission data (use the latest reviewed submission per task)
     const taskSubmissionMap = new Map()

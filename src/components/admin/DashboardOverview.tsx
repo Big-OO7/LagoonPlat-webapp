@@ -71,8 +71,10 @@ export default function DashboardOverview({ profile, onNavigate }: DashboardOver
       supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'reviewed'),
       supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
       supabase.from('submissions').select('*', { count: 'exact', head: true }),
-      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'submitted'),
-      supabase.from('submissions').select('*', { count: 'exact', head: true }).eq('status', 'reviewed'),
+      // Pending Review: submitted but not yet reviewed (matches SubmissionsReview logic)
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).not('submitted_at', 'is', null).is('reviewed_at', null),
+      // Reviewed: has been reviewed (reviewed_at is set) and NOT marked for revision
+      supabase.from('submissions').select('*', { count: 'exact', head: true }).not('reviewed_at', 'is', null).neq('status', 'revision_requested'),
       supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
       supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('role', 'labeler'),
       supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('role', 'admin'),

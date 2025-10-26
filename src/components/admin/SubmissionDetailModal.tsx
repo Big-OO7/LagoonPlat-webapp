@@ -92,20 +92,6 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
   const handleMarkAsReviewed = async () => {
     if (!submission) return
 
-    // Prevent approving if there is feedback/comments
-    if (feedback.trim()) {
-      const confirmed = confirm(
-        '⚠️ WARNING: This submission has comments/feedback.\n\n' +
-        'Approving with comments will make it unavailable for the labeler to fix.\n' +
-        'The task will appear in "With Comments" in the Export page but cannot be edited.\n\n' +
-        'Instead, you should:\n' +
-        '1. Use "Request Revision" button to send it back to the labeler\n' +
-        '2. The labeler can then fix the issues and resubmit\n\n' +
-        'Do you really want to approve WITH comments? (Not recommended)'
-      )
-      if (!confirmed) return
-    }
-
     setSubmitting(true)
 
     try {
@@ -560,6 +546,17 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                 rows={4}
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+              {!isReviewed && feedback.trim() && (
+                <p className="text-sm text-orange-600 mt-2 flex items-start gap-2">
+                  <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  <span>
+                    Since you&apos;ve entered feedback, you must use &quot;Request Edits&quot; to send this back to the labeler.
+                    The &quot;Approve&quot; button is disabled when feedback is present.
+                  </span>
+                </p>
+              )}
             </div>
 
             <div className="flex justify-between">
@@ -586,16 +583,18 @@ export default function SubmissionDetailModal({ submissionId, onClose, onUpdate 
                     <button
                       onClick={handleRequestRevision}
                       className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded disabled:opacity-50"
-                      disabled={submitting}
+                      disabled={submitting || !feedback.trim()}
+                      title={!feedback.trim() ? 'Please provide feedback to request edits' : ''}
                     >
                       {submitting ? 'Requesting...' : 'Request Edits'}
                     </button>
                     <button
                       onClick={handleMarkAsReviewed}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded disabled:opacity-50"
-                      disabled={submitting}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={submitting || feedback.trim().length > 0}
+                      title={feedback.trim() ? 'Cannot approve with feedback - use "Request Edits" instead' : 'Approve this submission as perfect'}
                     >
-                      {submitting ? 'Approving...' : 'Approve & Mark Reviewed'}
+                      {submitting ? 'Approving...' : 'Approve (Perfect Submission)'}
                     </button>
                   </>
                 )}
