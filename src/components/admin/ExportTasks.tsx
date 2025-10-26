@@ -44,7 +44,6 @@ export default function ExportTasks() {
         .from('submissions')
         .select('*')
         .not('reviewed_at', 'is', null)
-        .neq('status', 'revision_requested') // Exclude submissions sent back for edits
         .range(page * pageSize, (page + 1) * pageSize - 1)
 
       if (submissionsError) {
@@ -90,7 +89,16 @@ export default function ExportTasks() {
       }
     })
 
-    const taskIds = Array.from(taskSubmissionMap.keys())
+    // Filter out tasks where the latest submission is revision_requested (sent back to labeler)
+    // We keep tasks with status = 'reviewed' (approved, even with comments)
+    const exportableTaskIds: string[] = []
+    taskSubmissionMap.forEach((sub, taskId) => {
+      if (sub.status !== 'revision_requested') {
+        exportableTaskIds.push(taskId)
+      }
+    })
+
+    const taskIds = exportableTaskIds
     console.log('Unique tasks with reviewed submissions:', taskIds.length)
 
     if (taskIds.length === 0) {
