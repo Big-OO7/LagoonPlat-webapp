@@ -44,6 +44,7 @@ export default function ExportTasks() {
         .from('submissions')
         .select('*')
         .not('reviewed_at', 'is', null)
+        .neq('status', 'revision_requested') // Exclude submissions sent back for edits
         .range(page * pageSize, (page + 1) * pageSize - 1)
 
       if (submissionsError) {
