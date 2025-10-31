@@ -78,34 +78,67 @@ export default function ExportTasks() {
 
     const reviewedSubmissions = allReviewedSubmissions
 
+    // First, fetch all tasks to check for best_submission_id
+    const uniqueTaskIds = [...new Set(reviewedSubmissions.map(sub => sub.task_id))]
+    let allTasksForBestCheck: Task[] = []
+
+    const TASK_BATCH_SIZE = 100
+    for (let i = 0; i < uniqueTaskIds.length; i += TASK_BATCH_SIZE) {
+      const batch = uniqueTaskIds.slice(i, i + TASK_BATCH_SIZE)
+      const { data } = await supabase
+        .from('tasks')
+        .select('id, best_submission_id')
+        .in('id', batch)
+
+      if (data) {
+        allTasksForBestCheck = [...allTasksForBestCheck, ...(data as Task[])]
+      }
+    }
+
+    // Create a map of task best_submission_id
+    const taskBestSubmissionMap = new Map<string, string | null>()
+    allTasksForBestCheck.forEach(task => {
+      taskBestSubmissionMap.set(task.id, task.best_submission_id)
+    })
+
     // Create a map of task_id to submission data
-    // For each task, prefer 'reviewed' submissions over 'revision_requested'
+    // For each task, prefer best_submission_id, then 'reviewed' submissions over 'revision_requested'
     // If multiple submissions exist for a task (different labelers), pick the best one
     const taskSubmissionMap = new Map()
     reviewedSubmissions?.forEach(sub => {
       const existingSub = taskSubmissionMap.get(sub.task_id)
+      const bestSubmissionId = taskBestSubmissionMap.get(sub.task_id)
 
       if (!existingSub) {
         // No submission for this task yet, add it
         taskSubmissionMap.set(sub.task_id, sub)
       } else {
         // Already have a submission for this task, decide which to keep
-        // Priority 1: Prefer 'reviewed' status over 'revision_requested'
-        // Priority 2: If both have same status, use most recent reviewed_at
-
-        const existingIsReviewed = existingSub.status === 'reviewed'
-        const newIsReviewed = sub.status === 'reviewed'
-
-        if (!existingIsReviewed && newIsReviewed) {
-          // Existing is revision_requested, new is reviewed → take new
+        // Priority 1: If this submission is marked as best_submission_id, use it
+        if (bestSubmissionId === sub.id) {
           taskSubmissionMap.set(sub.task_id, sub)
-        } else if (existingIsReviewed && !newIsReviewed) {
-          // Existing is reviewed, new is revision_requested → keep existing
+        } else if (bestSubmissionId === existingSub.id) {
+          // Existing is the best submission, keep it
           // Do nothing
         } else {
-          // Both have same status → pick most recent
-          if (new Date(sub.reviewed_at || sub.updated_at) > new Date(existingSub.reviewed_at || existingSub.updated_at)) {
+          // Neither is marked as best, use fallback logic
+          // Priority 2: Prefer 'reviewed' status over 'revision_requested'
+          // Priority 3: If both have same status, use most recent reviewed_at
+
+          const existingIsReviewed = existingSub.status === 'reviewed'
+          const newIsReviewed = sub.status === 'reviewed'
+
+          if (!existingIsReviewed && newIsReviewed) {
+            // Existing is revision_requested, new is reviewed → take new
             taskSubmissionMap.set(sub.task_id, sub)
+          } else if (existingIsReviewed && !newIsReviewed) {
+            // Existing is reviewed, new is revision_requested → keep existing
+            // Do nothing
+          } else {
+            // Both have same status → pick most recent
+            if (new Date(sub.reviewed_at || sub.updated_at) > new Date(existingSub.reviewed_at || existingSub.updated_at)) {
+              taskSubmissionMap.set(sub.task_id, sub)
+            }
           }
         }
       }

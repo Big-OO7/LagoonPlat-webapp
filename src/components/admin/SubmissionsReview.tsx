@@ -4,17 +4,20 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Submission, Task } from '@/types/database'
 import SubmissionDetailModal from './SubmissionDetailModal'
+import CompareSubmissionsModal from './CompareSubmissionsModal'
 
 interface SubmissionWithTask extends Submission {
   task?: Task
   labeler_email?: string
   reviewer_email?: string
+  submission_count?: number
 }
 
 export default function SubmissionsReview() {
   const [submissions, setSubmissions] = useState<SubmissionWithTask[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null)
+  const [compareTaskId, setCompareTaskId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'submitted' | 'reviewed' | 'revision_requested'>('all')
   const supabase = createClient()
 
@@ -171,12 +174,19 @@ export default function SubmissionsReview() {
       reviewerProfilesData = reviewerResults.flatMap(r => r.data || [])
     }
 
+    // Count submissions per task
+    const submissionCounts = new Map<string, number>()
+    submissionsData.forEach(sub => {
+      submissionCounts.set(sub.task_id, (submissionCounts.get(sub.task_id) || 0) + 1)
+    })
+
     // Combine data
     const enrichedSubmissions = submissionsData.map(sub => ({
       ...sub,
       task: tasksData?.find(t => t.id === sub.task_id),
       labeler_email: profilesData?.find(p => p.id === sub.labeler_id)?.email,
       reviewer_email: sub.reviewed_by ? reviewerProfilesData?.find(p => p.id === sub.reviewed_by)?.email : undefined,
+      submission_count: submissionCounts.get(sub.task_id) || 1,
     }))
 
     setSubmissions(enrichedSubmissions)
@@ -373,16 +383,29 @@ export default function SubmissionsReview() {
                   )}
                 </div>
 
-                <button
-                  onClick={() => setSelectedSubmissionId(submission.id)}
-                  className={`ml-4 px-4 py-2 rounded font-medium ${
-                    submission.status === 'submitted'
-                      ? 'bg-purple-600 text-white hover:bg-purple-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {submission.status === 'submitted' ? 'Review' : 'View Details'}
-                </button>
+                <div className="ml-4 flex gap-2">
+                  {submission.submission_count && submission.submission_count > 1 && (
+                    <button
+                      onClick={() => setCompareTaskId(submission.task_id)}
+                      className="px-4 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded font-medium flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      Compare ({submission.submission_count})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSelectedSubmissionId(submission.id)}
+                    className={`px-4 py-2 rounded font-medium ${
+                      submission.status === 'submitted'
+                        ? 'bg-purple-600 text-white hover:bg-purple-700'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {submission.status === 'submitted' ? 'Review' : 'View Details'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -395,6 +418,18 @@ export default function SubmissionsReview() {
           onClose={() => setSelectedSubmissionId(null)}
           onUpdate={() => {
             setSelectedSubmissionId(null)
+            loadSubmissions()
+            loadStats()
+          }}
+        />
+      )}
+
+      {compareTaskId && (
+        <CompareSubmissionsModal
+          taskId={compareTaskId}
+          onClose={() => setCompareTaskId(null)}
+          onUpdate={() => {
+            setCompareTaskId(null)
             loadSubmissions()
             loadStats()
           }}
