@@ -42,9 +42,9 @@ export default function UsersManager() {
     }
 
     // Fetch submission counts for each user (count all actually submitted work, not drafts)
-    const { data: submissionCounts, error: countError } = await supabase
+    const { data: submissionCounts, error: countError} = await supabase
       .from('submissions')
-      .select('labeler_id, status')
+      .select('labeler_id, status, is_first_submission')
       .in('status', ['submitted', 'reviewed', 'completed', 'revision_requested'])
 
     if (countError) {
@@ -55,6 +55,8 @@ export default function UsersManager() {
     const completedCountsMap: Record<string, number> = {}
     const approvedCountsMap: Record<string, number> = {}
     const revisionRequestedCountsMap: Record<string, number> = {}
+    const firstSubmissionApprovedMap: Record<string, number> = {}
+    const firstSubmissionTotalMap: Record<string, number> = {}
 
     if (submissionCounts) {
       submissionCounts.forEach(submission => {
@@ -68,6 +70,17 @@ export default function UsersManager() {
         // Count tasks where edits were requested
         if (submission.status === 'revision_requested') {
           revisionRequestedCountsMap[submission.labeler_id] = (revisionRequestedCountsMap[submission.labeler_id] || 0) + 1
+        }
+
+        // NEW: Track first submission accuracy
+        // Only count first attempts (not resubmissions after revision)
+        if (submission.is_first_submission) {
+          firstSubmissionTotalMap[submission.labeler_id] = (firstSubmissionTotalMap[submission.labeler_id] || 0) + 1
+
+          // Count as correct if approved on first try
+          if (submission.status === 'reviewed' || submission.status === 'completed') {
+            firstSubmissionApprovedMap[submission.labeler_id] = (firstSubmissionApprovedMap[submission.labeler_id] || 0) + 1
+          }
         }
       })
     }
@@ -93,8 +106,12 @@ export default function UsersManager() {
     const usersWithCounts = usersData?.map(user => {
       const approved = approvedCountsMap[user.id] || 0
       const revisionRequested = revisionRequestedCountsMap[user.id] || 0
-      const totalReviewed = approved + revisionRequested
-      const accuracy = totalReviewed > 0 ? (approved / totalReviewed) * 100 : 0
+
+      // NEW ACCURACY CALCULATION: # correct on first submission / # tasks completed
+      // This includes tasks that were submitted, sent back for edits, and resubmitted
+      const firstSubmissionApproved = firstSubmissionApprovedMap[user.id] || 0
+      const firstSubmissionTotal = firstSubmissionTotalMap[user.id] || 0
+      const accuracy = firstSubmissionTotal > 0 ? (firstSubmissionApproved / firstSubmissionTotal) * 100 : 0
 
       return {
         ...user,

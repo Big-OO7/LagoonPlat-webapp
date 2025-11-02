@@ -127,6 +127,9 @@ export interface Submission {
   updated_at: string
   labeler_comment: string | null // Labeler's comments about task issues
   flagged_unsolvable: boolean // Flag for unsolvable/problematic tasks
+  is_first_submission: boolean // True if first attempt, false if resubmission
+  is_reviewer_created: boolean // True if created by reviewer as custom answer
+  created_by: string | null // User ID who created this submission
 }
 
 export interface TaskWithDetails extends Task {

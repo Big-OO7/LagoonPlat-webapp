@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import type { Submission, Task } from '@/types/database'
+import CreateCustomAnswerModal from './CreateCustomAnswerModal'
 
 interface SubmissionWithLabeler extends Submission {
   labeler_email?: string
@@ -21,6 +22,7 @@ export default function GroupedTaskReview() {
   const [loading, setLoading] = useState(true)
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<'ready' | 'pending' | 'all'>('ready')
+  const [customAnswerTaskId, setCustomAnswerTaskId] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -360,17 +362,28 @@ export default function GroupedTaskReview() {
                       </div>
                     </div>
                     {group.is_ready && hasUnreviewed && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (confirm(`Approve all ${group.submissions.length} submissions for "${group.task.title}"?`)) {
-                            handleBulkApprove(group.task.id)
-                          }
-                        }}
-                        className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded font-medium"
-                      >
-                        Approve All
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setCustomAnswerTaskId(group.task.id)
+                          }}
+                          className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded font-medium"
+                        >
+                          Write Custom Answer
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (confirm(`Approve all ${group.submissions.length} submissions for "${group.task.title}"?`)) {
+                              handleBulkApprove(group.task.id)
+                            }
+                          }}
+                          className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded font-medium"
+                        >
+                          Approve All
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -482,6 +495,17 @@ export default function GroupedTaskReview() {
             )
           })}
         </div>
+      )}
+
+      {customAnswerTaskId && (
+        <CreateCustomAnswerModal
+          task={taskGroups.find(g => g.task.id === customAnswerTaskId)!.task}
+          onClose={() => setCustomAnswerTaskId(null)}
+          onSuccess={() => {
+            setCustomAnswerTaskId(null)
+            loadTaskGroups()
+          }}
+        />
       )}
     </div>
   )
