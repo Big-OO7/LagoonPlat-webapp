@@ -204,18 +204,39 @@ export default function GroupedTaskReview() {
     )
     if (!confirmed) return
 
-    const { error } = await supabase
+    const userId = (await supabase.auth.getUser()).data.user?.id
+
+    // Update task with best_submission_id
+    const { error: taskError } = await supabase
       .from('tasks')
       .update({ best_submission_id: submissionId })
       .eq('id', taskId)
 
-    if (error) {
-      console.error('Error selecting best submission:', error)
+    if (taskError) {
+      console.error('Error selecting best submission:', taskError)
       alert('Failed to select best submission')
-    } else {
-      alert('Best submission selected successfully!')
-      loadTaskGroups()
+      return
     }
+
+    // Ensure the submission is marked as reviewed so it appears in exports
+    if (!submission.reviewed_at || submission.status !== 'reviewed') {
+      const { error: submissionError } = await supabase
+        .from('submissions')
+        .update({
+          status: 'reviewed',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: userId
+        })
+        .eq('id', submissionId)
+
+      if (submissionError) {
+        console.error('Error reviewing best submission:', submissionError)
+        alert('Best submission selected but failed to mark as reviewed')
+      }
+    }
+
+    alert('Best submission selected successfully!')
+    loadTaskGroups()
   }
 
   const getStatusColor = (status: string) => {
@@ -230,13 +251,13 @@ export default function GroupedTaskReview() {
   }
 
   const filteredGroups = taskGroups.filter(group => {
-    if (filter === 'ready') return group.is_ready && group.submissions.some(s => !s.reviewed_at)
+    if (filter === 'ready') return group.is_ready
     if (filter === 'pending') return !group.is_ready
     return true
   })
 
   const stats = {
-    ready: taskGroups.filter(g => g.is_ready && g.submissions.some(s => !s.reviewed_at)).length,
+    ready: taskGroups.filter(g => g.is_ready).length,
     pending: taskGroups.filter(g => !g.is_ready).length,
     total: taskGroups.length
   }

@@ -152,7 +152,7 @@ export default function FlaggedTasksQueue() {
           <p className="text-3xl font-bold text-red-600">{stats.unreviewed}</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-600 mb-1">Reviewed</h3>
+          <h3 className="text-sm font-medium text-gray-600 mb-1">Confirmed Unsolvable</h3>
           <p className="text-3xl font-bold text-green-600">{stats.reviewed}</p>
         </div>
       </div>
@@ -173,7 +173,7 @@ export default function FlaggedTasksQueue() {
             filter === 'reviewed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
           }`}
         >
-          Reviewed ({stats.reviewed})
+          Confirmed Unsolvable ({stats.reviewed})
         </button>
         <button
           onClick={() => setFilter('all')}

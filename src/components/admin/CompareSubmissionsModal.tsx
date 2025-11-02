@@ -19,6 +19,8 @@ export default function CompareSubmissionsModal({ taskId, onClose, onUpdate }: C
   const [submissions, setSubmissions] = useState<SubmissionWithLabeler[]>([])
   const [loading, setLoading] = useState(true)
   const [selecting, setSelecting] = useState(false)
+  const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null)
+  const [editedFormData, setEditedFormData] = useState<Record<string, string>>({})
   const supabase = createClient()
 
   useEffect(() => {
@@ -64,6 +66,83 @@ export default function CompareSubmissionsModal({ taskId, onClose, onUpdate }: C
     setLoading(false)
   }
 
+  const handleStartEdit = (submissionId: string) => {
+    const submission = submissions.find(s => s.id === submissionId)
+    if (!submission || !submission.response_data) return
+
+    // Extract form data from response_data
+    let initialData: Record<string, string> = {}
+    if (typeof submission.response_data === 'object' && 'formData' in submission.response_data) {
+      const formData = submission.response_data.formData as Record<string, unknown>
+      initialData = Object.entries(formData).reduce((acc, [key, value]) => {
+        acc[key] = String(value)
+        return acc
+      }, {} as Record<string, string>)
+    }
+
+    setEditedFormData(initialData)
+    setEditingSubmissionId(submissionId)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingSubmissionId(null)
+    setEditedFormData({})
+  }
+
+  const handleSaveAndSelectBest = async () => {
+    if (!task || !editingSubmissionId) return
+
+    const submission = submissions.find(s => s.id === editingSubmissionId)
+    if (!submission) return
+
+    const confirmed = confirm(
+      `Save your edits and mark this as the best submission?\n\nThis will update the submission data and use it for exports.`
+    )
+    if (!confirmed) return
+
+    setSelecting(true)
+
+    try {
+      const userId = (await supabase.auth.getUser()).data.user?.id
+
+      // Update submission with edited data
+      const updatedResponseData = {
+        formData: editedFormData
+      }
+
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({
+          response_data: updatedResponseData,
+          status: 'reviewed',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: userId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingSubmissionId)
+
+      if (updateError) throw updateError
+
+      // Set as best submission
+      const { error: taskError } = await supabase
+        .from('tasks')
+        .update({ best_submission_id: editingSubmissionId })
+        .eq('id', taskId)
+
+      if (taskError) throw taskError
+
+      alert('Submission updated and selected as best!')
+      setEditingSubmissionId(null)
+      setEditedFormData({})
+      onUpdate()
+    } catch (error) {
+      console.error('Error saving and selecting:', error)
+      alert('Failed to save and select. Please try again.')
+    } finally {
+      setSelecting(false)
+    }
+  }
+
   const handleSelectBest = async (submissionId: string) => {
     if (!task) return
 
@@ -78,12 +157,32 @@ export default function CompareSubmissionsModal({ taskId, onClose, onUpdate }: C
     setSelecting(true)
 
     try {
-      const { error } = await supabase
+      const userId = (await supabase.auth.getUser()).data.user?.id
+
+      // Update task with best_submission_id
+      const { error: taskError } = await supabase
         .from('tasks')
         .update({ best_submission_id: submissionId })
         .eq('id', taskId)
 
-      if (error) throw error
+      if (taskError) throw taskError
+
+      // Ensure the submission is marked as reviewed so it appears in exports
+      if (!submission.reviewed_at || submission.status !== 'reviewed') {
+        const { error: submissionError } = await supabase
+          .from('submissions')
+          .update({
+            status: 'reviewed',
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: userId
+          })
+          .eq('id', submissionId)
+
+        if (submissionError) {
+          console.error('Error reviewing best submission:', submissionError)
+          throw submissionError
+        }
+      }
 
       alert('Best submission selected successfully!')
       onUpdate()
@@ -272,9 +371,27 @@ export default function CompareSubmissionsModal({ taskId, onClose, onUpdate }: C
 
                   <div className="mb-3 max-h-64 overflow-y-auto">
                     <p className="text-xs font-semibold text-gray-700 mb-2">Response:</p>
-                    <div className="text-sm bg-gray-50 p-3 rounded border border-gray-200">
-                      {renderResponseData(submission)}
-                    </div>
+                    {editingSubmissionId === submission.id ? (
+                      <div className="space-y-2">
+                        {Object.entries(editedFormData).map(([key, value]) => (
+                          <div key={key}>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              {key}
+                            </label>
+                            <input
+                              type="text"
+                              value={value}
+                              onChange={(e) => setEditedFormData({ ...editedFormData, [key]: e.target.value })}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm bg-gray-50 p-3 rounded border border-gray-200">
+                        {renderResponseData(submission)}
+                      </div>
+                    )}
                   </div>
 
                   {submission.feedback && (
@@ -291,21 +408,54 @@ export default function CompareSubmissionsModal({ taskId, onClose, onUpdate }: C
                     </div>
                   )}
 
-                  <button
-                    onClick={() => handleSelectBest(submission.id)}
-                    disabled={selecting || task.best_submission_id === submission.id}
-                    className={`w-full py-2 px-4 rounded font-medium text-sm ${
-                      task.best_submission_id === submission.id
-                        ? 'bg-green-100 text-green-800 cursor-default'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50'
-                    }`}
-                  >
-                    {task.best_submission_id === submission.id
-                      ? 'Selected as Best'
-                      : selecting
-                      ? 'Selecting...'
-                      : 'Select as Best'}
-                  </button>
+                  {editingSubmissionId === submission.id ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveAndSelectBest}
+                        disabled={selecting}
+                        className="flex-1 py-2 px-4 bg-green-600 text-white hover:bg-green-700 rounded font-medium text-sm disabled:opacity-50"
+                      >
+                        {selecting ? 'Saving...' : 'Save & Select as Best'}
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        disabled={selecting}
+                        className="px-4 py-2 bg-gray-300 text-gray-700 hover:bg-gray-400 rounded font-medium text-sm disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSelectBest(submission.id)}
+                        disabled={selecting || task.best_submission_id === submission.id}
+                        className={`flex-1 py-2 px-4 rounded font-medium text-sm ${
+                          task.best_submission_id === submission.id
+                            ? 'bg-green-100 text-green-800 cursor-default'
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50'
+                        }`}
+                      >
+                        {task.best_submission_id === submission.id
+                          ? 'Selected as Best'
+                          : selecting
+                          ? 'Selecting...'
+                          : 'Select as Best'}
+                      </button>
+                      {typeof submission.response_data === 'object' && 'formData' in submission.response_data && (
+                        <button
+                          onClick={() => handleStartEdit(submission.id)}
+                          disabled={selecting || task.best_submission_id === submission.id}
+                          className="px-3 py-2 bg-gray-600 text-white hover:bg-gray-700 rounded font-medium text-sm disabled:opacity-50"
+                          title="Edit this submission before selecting as best"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
