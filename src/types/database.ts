@@ -79,6 +79,7 @@ export interface Task {
   last_exported_by: string | null
   export_count: number | null
   best_submission_id: string | null
+  required_submissions: number | null
 }
 
 export interface Artifact {
