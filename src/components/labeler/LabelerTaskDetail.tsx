@@ -196,13 +196,17 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
         console.log('Updating existing submission:', submission.id)
         console.log('Previous submission status:', submission.status)
 
+        // Determine status: if flagged as unsolvable, keep status as 'in_progress' so it doesn't appear in review queue
+        // Only flagged tasks should go to the "Flagged Tasks" queue, not the regular review queue
+        const submissionStatus = flaggedUnsolvable ? 'in_progress' as const : 'submitted' as const
+
         // For revision_requested submissions, also clear review fields to allow resubmission
         const updateData: Record<string, unknown> = {
           response_data: responseData,
           rubric_data: {}, // Legacy field, provide empty object
           grader_results: graderResults,
           score: score,
-          status: 'submitted' as const,
+          status: submissionStatus,
           submitted_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           labeler_comment: labelerComment || null,
@@ -264,6 +268,10 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
       } else {
         // Create new submission
         console.log('Creating new submission')
+
+        // Determine status: if flagged as unsolvable, keep status as 'in_progress' so it doesn't appear in review queue
+        const submissionStatus = flaggedUnsolvable ? 'in_progress' as const : 'submitted' as const
+
         const insertData = {
           task_id: taskId,
           labeler_id: labelerId,
@@ -271,7 +279,7 @@ export default function LabelerTaskDetail({ taskId, labelerId, onClose, onSubmit
           rubric_data: {}, // Legacy field, provide empty object
           grader_results: graderResults,
           score: score,
-          status: 'submitted' as const,
+          status: submissionStatus,
           submitted_at: new Date().toISOString(),
           labeler_comment: labelerComment || null,
           flagged_unsolvable: flaggedUnsolvable,

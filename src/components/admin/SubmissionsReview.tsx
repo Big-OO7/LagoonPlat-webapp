@@ -224,6 +224,10 @@ export default function SubmissionsReview() {
   }
 
   const filteredSubmissions = submissions.filter(sub => {
+    // ALWAYS exclude flagged tasks from regular submissions review
+    // Flagged tasks should only appear in the "Flagged Tasks" queue
+    if (sub.flagged_unsolvable) return false
+
     if (filter === 'all') return true
     // Pending Review: submitted but not yet reviewed (matches stats logic)
     if (filter === 'submitted') return sub.submitted_at !== null && sub.reviewed_at === null
@@ -374,6 +378,13 @@ export default function SubmissionsReview() {
                       </span>
                     )}
                   </div>
+
+                  {submission.labeler_comment && (
+                    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                      <p className="text-sm font-medium text-yellow-900">Labeler Comment:</p>
+                      <p className="text-sm text-yellow-800 mt-1">{submission.labeler_comment}</p>
+                    </div>
+                  )}
 
                   {submission.feedback && (
                     <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded">
